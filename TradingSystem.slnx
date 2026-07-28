@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Aggregator/Aggregator.csproj" />
+    <Project Path="src/Simulators/Simulators.csproj" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/Trading.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Tests/">
+    <Project Path="tests/Tests/Trading.Tests.csproj" />
+  </Folder>
+</Solution>
