@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Trading.Core.csproj" />
+    <ProjectReference Include="..\..\src\Aggregator\Aggregator.csproj" />
   </ItemGroup>
 
 </Project>
