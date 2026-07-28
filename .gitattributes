@@ -1,0 +1,24 @@
+# Normalize line endings: store text as LF in the repo, check out native on each OS.
+* text=auto
+
+# Explicit types (helps diffs and avoids ambiguity)
+*.cs      text diff=csharp
+*.csproj  text
+*.slnx    text
+*.props   text
+*.targets text
+*.json    text
+*.md      text
+*.gitattributes text
+*.gitignore     text
+
+# Scripts keep the line endings their interpreter expects
+*.sh  text eol=lf
+*.ps1 text eol=crlf
+
+# Binaries (never touch)
+*.png binary
+*.jpg binary
+*.ico binary
+*.dll binary
+*.snk binary
