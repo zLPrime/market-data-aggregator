@@ -69,3 +69,67 @@ work directly to the default branch.
   its failure logged.
 - Every background loop observes a `CancellationToken`.
 - No swallowed exceptions: every `catch` block either logs or increments a counter.
+
+The "Hard rules" above are the sharp, compiler-/review-enforced subset. The broader
+engineering standard for this repo follows.
+
+# Project Rules
+
+## General
+
+This project should look like production code written by an experienced Senior .NET Engineer.
+
+Prioritize:
+- readability
+- maintainability
+- correctness
+- extensibility
+
+Do not optimize prematurely.
+
+## Architecture
+
+- Follow SOLID.
+- Prefer composition over inheritance.
+- Keep infrastructure isolated.
+- Avoid God classes.
+- One responsibility per class.
+
+## Async
+
+- Never use `.Result` or `.Wait()`.
+- Never use `async void`.
+- Never create fire-and-forget tasks.
+- Always propagate `CancellationToken`.
+- Exceptions from background tasks must be observed.
+
+## Concurrency
+
+- Shared state must always be thread-safe.
+- Explain synchronization decisions.
+- Prefer Channels over manual locking when appropriate.
+
+## Code
+
+- Use immutable records where appropriate.
+- Prefer dependency injection.
+- Minimize allocations.
+- Avoid duplicate code.
+
+## Before writing code
+
+Explain the proposed design.
+
+## After writing code
+
+Review the implementation.
+
+Look for:
+- race conditions
+- deadlocks
+- memory leaks
+- cancellation issues
+- unnecessary allocations
+- SOLID violations
+
+Refactor if improvements are found.
