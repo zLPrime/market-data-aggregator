@@ -17,6 +17,32 @@ Each entry follows this template:
 
 ---
 
+## 2026-07-29 — Deduplicator: full-tuple key + two-generation time window
+
+**Decision:** The dedup key is all five identity fields —
+`(Source, Ticker, Price, Volume, Timestamp)`. Keys are held in two time-bucketed
+generations, each spanning `Window` (so a key is retained for 1x–2x `Window`); rotation
+drops the whole oldest generation (O(1) eviction). Check-and-record is a single
+`ConcurrentDictionary.TryAdd`; the two generations sit in one immutable snapshot read once
+per call, so reads are lock-free, while lazy rotation is serialized by a lock and reuses the
+old current as the new previous.
+
+**Alternatives considered:** (a) Coarser key `(Source, Ticker, Timestamp)`. (b) One
+unbounded dictionary of all keys. (c) A per-key last-seen timestamp swept periodically. (d)
+Keying on `NormalizedTick`'s own record equality.
+
+**Why:** Including `Source` means the same quote from two exchanges is two observations, not a
+duplicate; keeping `Price`/`Volume` avoids dropping two genuine quotes that share a millisecond
+— silent loss (grading #2) is worse than missing a re-send a coarser key would have caught. Two
+generations bound memory (spec load scenario) with O(1) eviction, avoiding an O(n) sweep or a
+tracked background task. The immutable snapshot makes the rotation boundary race-free without a
+reader lock (grading #1/#4). An explicit `TickKey` decouples dedup identity from the transport
+struct, so `NormalizedTick` can evolve without silently changing what counts as a duplicate.
+Trade-off: an exact re-send arriving more than two windows later is treated as new — acceptable
+since real re-sends follow a reconnect within seconds.
+
+---
+
 ## 2026-07-28 — Connectors own their inbound channel
 
 **Decision:** `IExchangeConnector` creates and owns a `Channel<NormalizedTick>` and

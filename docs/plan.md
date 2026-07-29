@@ -21,8 +21,8 @@ Engineering decisions made along the way are logged separately in
 |-------|-------------|--------|----|
 | a | Core abstractions (interfaces only) | ✅ | #1 |
 | b | WebSocket connector: reconnect + backoff + idle-timeout | ✅ | #2 |
-| c | Deduplicator (stress test **before** implementation) | 👉 next | — |
-| d | Batched DB writer (fault-injection test **before** implementation) | ⬜ | — |
+| c | Deduplicator (stress test **before** implementation) | 🔧 | — |
+| d | Batched DB writer (fault-injection test **before** implementation) + fan-in | 👉 next | — |
 | e | Remaining 2–3 exchange simulators + fault-injection endpoint | ⬜ | — |
 | f | Graceful shutdown / drain | ⬜ | — |
 | g | Monitoring counters + backpressure indicator | ⬜ | — |
@@ -51,19 +51,22 @@ transport (`IWebSocketConnection`) and format (`IMessageParser`) seams.
   never on a socket drop.
 - Decisions logged: idle-via-linked-CTS, backoff-reset-on-first-frame, two-seam design.
 
-### c — Deduplicator 👉 NEXT
+### c — Deduplicator 🔧 IN REVIEW
 Thread-safe `IDeduplicator` filtering duplicates arriving concurrently from multiple
-sources. **Starts with a concurrency stress test written BEFORE the implementation**
-(N producers hammering one deduplicator; assert no duplicates escape and no races).
-Define the dedup key (which fields) and the dedup window; document both in the README.
-- **Channel:** the **fan-in** point — merge the N per-connector inbound readers into one
-  stream; the deduplicator filters before the shared **outbound** channel to the DB writer.
+sources. Stress test written BEFORE the implementation (N producers hammering one
+deduplicator; assert no duplicates escape and no races), plus a rotation-boundary race test.
+- **Key:** `(Source, Ticker, Price, Volume, Timestamp)` — dedup re-sends *within* a source.
+- **Window:** two time-bucketed generations (retention 1x–2x), O(1) eviction; `TrackedKeys`
+  gauge witnesses bounded memory. Key + window to be documented in the README (Phase h).
+- **Fan-in moved to Phase d** — it needs the outbound channel + DB-writer consumer to exist.
 
 ### d — Batched DB writer ⬜
 Persist ticks to Postgres with batching (size + time triggers). **Fault-injection test
 written BEFORE the implementation** (DB unavailable / write error → no silent loss).
 Write-failure strategy: retry / bounded buffer / explicit dropped-counter — a decision,
 not a swallowed exception.
+- **Fan-in (moved from c):** merge the N per-connector inbound readers, run each through the
+  deduplicator, and write survivors to the shared outbound channel this writer drains.
 - **Channel:** consumes the **shared outbound bounded** `Channel<NormalizedTick>`; its
   fill level is the backpressure signal (see Phase g). Drains batches from the reader.
 
