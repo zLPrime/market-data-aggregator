@@ -87,6 +87,14 @@ Prioritize:
 
 Do not optimize prematurely.
 
+## Simplicity
+
+- Prefer the simplest solution that satisfies the requirements; avoid overengineering.
+- When two designs both work, choose the simpler one.
+- No speculative abstraction, generality, or configuration for needs that don't exist yet
+  (YAGNI) — add complexity only when a present requirement demands it.
+- Simplicity never overrides correctness or the concurrency / hard rules below.
+
 ## Architecture
 
 - Follow SOLID.
