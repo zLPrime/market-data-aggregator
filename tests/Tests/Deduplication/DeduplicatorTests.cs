@@ -98,4 +98,29 @@ public sealed class DeduplicatorTests
         clock.Advance(TimeSpan.FromMinutes(5)); // beyond 2x window: both generations rotated out
         Assert.True(dedup.TryAccept(tick));     // treated as new again (documented window trade-off)
     }
+
+    [Fact]
+    public void Tracked_key_count_stays_bounded_across_many_windows()
+    {
+        // Spec load scenario: memory must not grow without bound. Feed a fresh batch of unique
+        // keys every window for many windows; only two generations are ever retained, so the
+        // tracked set is capped at ~2 windows' worth no matter how many ticks flow through.
+        var window = TimeSpan.FromMinutes(1);
+        var clock = new MutableTimeProvider(Epoch);
+        var dedup = NewDeduplicator(window: window, clock: clock);
+        const int perWindow = 1_000;
+        const int windows = 20;
+        var uid = 0;
+
+        for (var w = 0; w < windows; w++)
+        {
+            for (var i = 0; i < perWindow; i++)
+                Assert.True(dedup.TryAccept(Tick(ticker: "SYM-" + uid++)));
+
+            Assert.True(dedup.TrackedKeys <= 2 * perWindow,
+                $"tracked keys {dedup.TrackedKeys} exceeded the two-generation bound after window {w}");
+
+            clock.Advance(window);
+        }
+    }
 }
