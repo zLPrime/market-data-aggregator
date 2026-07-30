@@ -65,6 +65,11 @@ public sealed class BatchingTickWriter
                 }
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Hard stop: the in-flight partial batch is abandoned by design. The graceful drain
+            // (Phase f) instead completes the channel, so the loop above flushes it and exits here.
+        }
         finally
         {
             _logger.LogInformation(
