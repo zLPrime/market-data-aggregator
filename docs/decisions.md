@@ -3,6 +3,9 @@
 A running log of key engineering decisions, filled in per subsystem as we build.
 Newest entries at the top.
 
+Plain-language overviews with diagrams live in [`design/`](design/); this log and the code hold
+the implementation detail.
+
 Each entry follows this template:
 
 ---
@@ -41,7 +44,7 @@ struct, so `NormalizedTick` can evolve without silently changing what counts as 
 Trade-off: an exact re-send arriving more than two windows later is treated as new — acceptable
 since real re-sends follow a reconnect within seconds.
 
-**Diagram:** [`deduplicator.md`](deduplicator.md).
+**Overview + diagram:** [`design/deduplicator.md`](design/deduplicator.md).
 
 ---
 
