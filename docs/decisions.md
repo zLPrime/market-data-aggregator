@@ -41,6 +41,8 @@ struct, so `NormalizedTick` can evolve without silently changing what counts as 
 Trade-off: an exact re-send arriving more than two windows later is treated as new — acceptable
 since real re-sends follow a reconnect within seconds.
 
+**Diagram:** [`deduplicator.md`](deduplicator.md).
+
 ---
 
 ## 2026-07-28 — Connectors own their inbound channel
