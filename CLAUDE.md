@@ -4,6 +4,9 @@ Aggregates live quote streams from multiple WebSocket "exchange" simulators:
 connects concurrently, normalizes heterogeneous formats, deduplicates,
 batches to Postgres, reconnects with backoff, and drains on shutdown.
 
+The authoritative requirements are in [`docs/spec.md`](docs/spec.md); the phased
+build plan and current status live in [`docs/plan.md`](docs/plan.md).
+
 ## Tech stack
 - **.NET 10 (LTS)**
 - **xUnit** for tests
@@ -89,7 +92,8 @@ Do not optimize prematurely.
 
 ## Simplicity
 
-- Prefer the simplest solution that satisfies the requirements; avoid overengineering.
+- Prefer the simplest solution that satisfies the requirements in [`docs/spec.md`](docs/spec.md);
+  avoid overengineering. Build for the spec, not for imagined future requirements.
 - When two designs both work, choose the simpler one.
 - No speculative abstraction, generality, or configuration for needs that don't exist yet
   (YAGNI) — add complexity only when a present requirement demands it.
