@@ -38,6 +38,44 @@ public sealed class FanIn
     /// <summary>The merged, deduplicated outbound stream. Completes once all inputs have drained.</summary>
     public ChannelReader<NormalizedTick> Output => _output.Reader;
 
-    public Task RunAsync(CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+    /// <summary>
+    /// Runs one pump task per input, each draining its reader through the deduplicator into the
+    /// shared output. Returns when every input has completed (clean drain) or on cancellation
+    /// (hard stop). The output is completed exactly once, on the way out, so downstream always
+    /// sees a definite end-of-stream (the Phase f drain cascade relies on this).
+    /// </summary>
+    public async Task RunAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("fan-in starting over {InputCount} source(s)", _inputs.Count);
+        try
+        {
+            var pumps = new Task[_inputs.Count];
+            for (var i = 0; i < _inputs.Count; i++)
+                pumps[i] = PumpAsync(_inputs[i], cancellationToken);
+
+            await Task.WhenAll(pumps);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal shutdown (hard stop).
+        }
+        finally
+        {
+            _output.Writer.Complete();
+            _logger.LogInformation("fan-in stopped");
+        }
+    }
+
+    /// <summary>
+    /// Drains one input, forwarding only ticks the deduplicator accepts. The dedup call is the
+    /// single point of shared state and is thread-safe, so pumps run concurrently without locking.
+    /// </summary>
+    private async Task PumpAsync(ChannelReader<NormalizedTick> input, CancellationToken cancellationToken)
+    {
+        await foreach (var tick in input.ReadAllAsync(cancellationToken))
+        {
+            if (_deduplicator.TryAccept(tick))
+                await _output.Writer.WriteAsync(tick, cancellationToken);
+        }
+    }
 }
