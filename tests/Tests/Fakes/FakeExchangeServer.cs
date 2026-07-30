@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -68,11 +69,13 @@ public sealed class FakeExchangeServer : IAsyncDisposable
 
     private async Task HandleClientAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
-        var wsContext = await context.AcceptWebSocketAsync(subProtocol: null);
-        Interlocked.Increment(ref _connectionCount);
-        var socket = wsContext.WebSocket;
+        WebSocket? socket = null;
         try
         {
+            var wsContext = await context.AcceptWebSocketAsync(subProtocol: null);
+            Interlocked.Increment(ref _connectionCount);
+            socket = wsContext.WebSocket;
+
             for (var i = 0; i < _messagesPerConnection; i++)
             {
                 var json = FormatAMessages.Tick("BTC-USD", price: 100 + i, size: 1, tsMillis: i);
@@ -86,9 +89,15 @@ public sealed class FakeExchangeServer : IAsyncDisposable
         {
             // Server is shutting down mid-send; nothing to do.
         }
+        catch (Exception ex) when (ex is WebSocketException or HttpListenerException or IOException)
+        {
+            // The client dropped without a close handshake — expected whenever the connector
+            // reconnects or shuts down. A real exchange faces the same thing; a fake one must
+            // treat a vanished client as normal, not as a server error.
+        }
         finally
         {
-            socket.Dispose();
+            socket?.Dispose();
         }
     }
 
