@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Trading.Core.csproj" />
     <ProjectReference Include="..\..\src\Aggregator\Aggregator.csproj" />
+    <ProjectReference Include="..\..\src\Simulators\Simulators.csproj" />
   </ItemGroup>
 
   <ItemGroup>
