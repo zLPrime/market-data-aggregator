@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The simulator integration test builds a real Kestrel host in-process, so the test
+         assembly needs the ASP.NET Core shared framework at compile time. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The canonical DB schema, copied next to the test assembly so the Npgsql integration
          test provisions its throwaway container from the same file production uses. -->
     <None Include="..\..\db\schema.sql" Link="schema.sql" CopyToOutputDirectory="PreserveNewest" />
