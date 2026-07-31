@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
+
 namespace Simulators.Quotes;
 
 /// <summary>
@@ -11,5 +14,13 @@ public sealed class FormatBFormatter : IQuoteFormatter
 {
     public string Format => "B";
 
-    public string Serialize(Quote quote) => throw new NotImplementedException();
+    // Prices/volumes as invariant strings and the timestamp as ISO-8601 round-trip ("O"), so
+    // Format B differs from A in field names, value types AND time encoding.
+    public string Serialize(Quote quote) => JsonSerializer.Serialize(new
+    {
+        s = quote.Ticker,
+        p = quote.Price.ToString(CultureInfo.InvariantCulture),
+        v = quote.Volume.ToString(CultureInfo.InvariantCulture),
+        t = quote.Timestamp.ToString("O", CultureInfo.InvariantCulture),
+    });
 }

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Simulators.Quotes;
 
 /// <summary>
@@ -9,5 +11,13 @@ public sealed class FormatAFormatter : IQuoteFormatter
 {
     public string Format => "A";
 
-    public string Serialize(Quote quote) => throw new NotImplementedException();
+    // System.Text.Json writes decimals as JSON numbers and escapes the ticker; culture-invariant
+    // by construction, so no formatting decisions leak in.
+    public string Serialize(Quote quote) => JsonSerializer.Serialize(new
+    {
+        symbol = quote.Ticker,
+        price = quote.Price,
+        size = quote.Volume,
+        ts = quote.Timestamp.ToUnixTimeMilliseconds(),
+    });
 }

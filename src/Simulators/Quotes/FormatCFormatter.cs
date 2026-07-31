@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Simulators.Quotes;
 
 /// <summary>
@@ -9,5 +11,8 @@ public sealed class FormatCFormatter : IQuoteFormatter
 {
     public string Format => "C";
 
-    public string Serialize(Quote quote) => throw new NotImplementedException();
+    // Positional pipe-delimited with a Unix-seconds timestamp; invariant formatting so the
+    // decimals never pick up a locale's separators.
+    public string Serialize(Quote quote) => string.Create(CultureInfo.InvariantCulture,
+        $"{quote.Ticker}|{quote.Price}|{quote.Volume}|{quote.Timestamp.ToUnixTimeSeconds()}");
 }
