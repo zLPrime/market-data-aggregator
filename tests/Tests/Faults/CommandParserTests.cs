@@ -10,11 +10,11 @@ public sealed class CommandParserTests
     [Fact]
     public void Drop_command_forces_a_drop()
     {
-        var token = _controller.DropToken;
+        var captured = _controller.DropGeneration;
 
         var result = Parser.Execute("drop");
 
-        Assert.True(token.IsCancellationRequested);
+        Assert.NotEqual(captured, _controller.DropGeneration);
         Assert.Contains("drop", result, StringComparison.OrdinalIgnoreCase);
     }
 

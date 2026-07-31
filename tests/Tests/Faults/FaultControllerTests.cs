@@ -19,27 +19,27 @@ public sealed class FaultControllerTests
     }
 
     [Fact]
-    public void RequestDrop_cancels_a_token_captured_before_it()
+    public void RequestDrop_changes_the_generation_a_live_connection_captured()
     {
         var controller = new FaultController();
-        var token = controller.DropToken;
+        var captured = controller.DropGeneration;
 
         controller.RequestDrop();
 
-        Assert.True(token.IsCancellationRequested);
+        Assert.NotEqual(captured, controller.DropGeneration); // a live connection sees this and closes
     }
 
     [Fact]
-    public void A_token_captured_after_a_drop_is_not_cancelled()
+    public void A_connection_opened_after_a_drop_sees_a_stable_generation()
     {
         // Drop closes the connections live at the time; the next connection must start clean,
         // otherwise the aggregator could never reconnect after a drop.
         var controller = new FaultController();
         controller.RequestDrop();
 
-        var reconnectToken = controller.DropToken;
+        var captured = controller.DropGeneration; // the reconnected connection captures here
 
-        Assert.False(reconnectToken.IsCancellationRequested);
+        Assert.Equal(captured, controller.DropGeneration); // not immediately treated as dropped
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class FaultControllerTests
                 for (var i = 0; i < 1000; i++)
                 {
                     controller.RequestDrop();
-                    _ = controller.DropToken.IsCancellationRequested;
+                    _ = controller.DropGeneration;
                     controller.SetDuplicate(i % 2 == 0);
                 }
             });
@@ -68,6 +68,6 @@ public sealed class FaultControllerTests
 
         await Task.WhenAll(tasks); // no exception escapes
 
-        Assert.False(controller.DropToken.IsCancellationRequested); // last swap left a fresh source
+        Assert.Equal(workers * 1000L, controller.DropGeneration); // every increment counted, none lost
     }
 }
