@@ -11,21 +11,22 @@ namespace Simulators.Quotes;
 /// </remarks>
 public sealed class QuoteGenerator
 {
+    private const decimal StartPrice = 100m;
+
     private readonly string[] _tickers;
     private readonly decimal[] _prices; // current price per ticker — the walk state
     private readonly Random _random;
     private readonly TimeProvider _timeProvider;
     private int _next; // round-robin cursor into _tickers
 
-    public QuoteGenerator(
-        IReadOnlyList<string> tickers, TimeProvider timeProvider, int seed, decimal startPrice = 100m)
+    public QuoteGenerator(IReadOnlyList<string> tickers, TimeProvider timeProvider, int seed)
     {
         if (tickers.Count == 0)
             throw new ArgumentException("at least one ticker is required", nameof(tickers));
 
         _tickers = [.. tickers];
         _prices = new decimal[_tickers.Length];
-        Array.Fill(_prices, startPrice);
+        Array.Fill(_prices, StartPrice);
         _random = new Random(seed);
         _timeProvider = timeProvider;
     }

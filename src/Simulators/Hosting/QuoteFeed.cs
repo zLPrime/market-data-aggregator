@@ -20,7 +20,6 @@ public sealed class QuoteFeed(
     ILogger<QuoteFeed> logger)
 {
     private long _connectionsAccepted;
-    private int _connectionSeq; // gives each connection a distinct RNG seed
 
     /// <summary>Number of connections this feed has accepted — a reconnect after a drop increments it.</summary>
     public long ConnectionsAccepted => Interlocked.Read(ref _connectionsAccepted);
@@ -29,13 +28,12 @@ public sealed class QuoteFeed(
     public async Task RunAsync(WebSocket socket, CancellationToken appStopping)
     {
         Interlocked.Increment(ref _connectionsAccepted);
-        var generator = new QuoteGenerator(options.Tickers, timeProvider, NextSeed());
+        var generator = new QuoteGenerator(options.Tickers, timeProvider, options.Seed);
 
         // Capture the drop generation for THIS connection; when a drop bumps it we end this
         // connection (the aggregator then reconnects), while the next connection starts fresh.
         var dropGeneration = faults.DropGeneration;
-        var plan = EmitPlan.For(options.Rate);
-        using var timer = new PeriodicTimer(plan.Interval);
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1.0 / options.Rate));
 
         try
         {
@@ -44,13 +42,10 @@ public sealed class QuoteFeed(
                 if (faults.DropGeneration != dropGeneration)
                     break; // drop fault — close and let the aggregator reconnect
 
-                for (var i = 0; i < plan.QuotesPerTick; i++)
-                {
-                    var frame = formatter.Serialize(generator.Next());
-                    await SendAsync(socket, frame, appStopping);
-                    if (faults.DuplicateEnabled)
-                        await SendAsync(socket, frame, appStopping); // spec fault: re-send exercises dedup
-                }
+                var frame = formatter.Serialize(generator.Next());
+                await SendAsync(socket, frame, appStopping);
+                if (faults.DuplicateEnabled)
+                    await SendAsync(socket, frame, appStopping); // spec fault: re-send exercises dedup
             }
         }
         catch (OperationCanceledException) when (appStopping.IsCancellationRequested)
@@ -67,8 +62,6 @@ public sealed class QuoteFeed(
             await CloseQuietlyAsync(socket);
         }
     }
-
-    private int NextSeed() => unchecked(options.Seed + Interlocked.Increment(ref _connectionSeq));
 
     private static Task SendAsync(WebSocket socket, string frame, CancellationToken cancellationToken)
     {
