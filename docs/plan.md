@@ -78,28 +78,32 @@ written BEFORE the implementation** (DB unavailable / write error → no silent 
   binary COPY, and skips when Docker is absent so `dotnet test` stays green everywhere.
 - Decisions logged: write-failure strategy, fan-in owns the outbound channel.
 
-### e — Exchange simulators + fault control 🔧
-The remaining 2–3 WebSocket "exchange" simulators, each in a **distinctly different**
-format (different field names / types / time encodings, e.g. `price` vs `p` vs `last`,
-string vs numeric price). Each simulator is an **ASP.NET Core Kestrel** host serving the
-WebSocket quote feed and an HTTP control endpoint **on one port**.
-- **Fault control — two surfaces, one brain.** A thread-safe `FaultController` holds the
-  mutable fault state; a `CommandParser` turns a text line into a call on it. Two thin
-  input adapters feed the *same* parser, so fault logic exists once (SOLID):
-  - **stdin CLI (manual):** a background console loop reads `Console.In`; typing `drop`,
-    `dup on/off`, `garbage on/off`, `pause`/`resume`, `rate <n>`, `status`, `help` mutates
-    fault state live and echoes the result.
-  - **HTTP endpoint (scripted):** `POST /fault` with the same command as the body, so the
-    test-stand script (Phase h) drives faults without a TTY (curl / `Invoke-RestMethod`).
-    The WebSocket feed and `/fault` share the single Kestrel port.
-- **Fault vocabulary:** `drop` (force-close client sockets → reconnect), `dup on/off`
-  (re-emit each tick as a duplicate → exercises dedup), `garbage on/off` (emit malformed
-  frames → exercises parser resilience + `ParseErrors`), `pause`/`resume` (stop emitting
-  but keep the socket open → exercises idle-timeout), `rate <n>` (ticks/sec → load).
+### e — Exchange simulators + fault control 🔧 IN REVIEW
+The remaining 2 WebSocket "exchange" simulators (formats **B**, **C**; **A** exists from Phase b),
+each in a **distinctly different** format. Each simulator is an **ASP.NET Core Kestrel** host serving
+the WebSocket quote feed and the HTTP control endpoint **on one port**.
+- **Two symmetric seams.** A new exchange is a new `IQuoteFormatter` here + a new `IMessageParser` on
+  the aggregator, and nothing else. A **round-trip test** (`formatter → wire → parser`) pins each
+  format's two halves together. Formats: **A** JSON/number/Unix-millis, **B** JSON short-keys
+  (`s,p,v,t`)/string/ISO-8601, **C** pipe-delimited/positional/Unix-seconds.
+- **Quote source.** `QuoteGenerator` — seeded per-ticker random walk, injectable clock, pure/unit-
+  tested. `EmitPlan` paces the feed as a **batch per tick** (10 ms floor) so throughput isn't capped
+  by OS timer granularity — three simulators at `--rate` sum to the 500–1000 ticks/s load scenario.
+- **Fault control — two surfaces, one brain.** A thread-safe `FaultController` holds the mutable fault
+  state; a `CommandParser` turns a text line into a call on it. Two thin adapters feed the *same*
+  parser (SOLID):
+  - **stdin CLI (manual):** a background `BackgroundService` reads `Console.In`; typing a command
+    mutates fault state live and echoes the result.
+  - **HTTP endpoint (scripted):** `POST /fault` with the same command as the body, so the Phase h
+    test stand drives faults without a TTY. The WS feed and `/fault` share the single Kestrel port.
+- **Fault vocabulary (minimal, per spec):** `drop` (force-close → reconnect) and `dup on/off` (re-emit
+  each quote → exercises dedup), plus `status`/`help`. **Deferred** behind the same seam for later:
+  `garbage on/off`, `pause`/`resume`, runtime `rate <n>`.
 - **Channel:** none in the simulators. On the aggregator side each new simulator is a new
-  `IMessageParser` + its own per-connector inbound channel — proving extensibility (a new
-  exchange changes no existing code).
-- Decision to log: control transport (HTTP on the Kestrel data port vs control-WS vs stdin).
+  `IMessageParser` + its own per-connector inbound channel — proving extensibility (a new exchange
+  changes no existing code).
+- Decisions logged: control transport (two surfaces, one controller); minimal-vocabulary + batch
+  pacing + the three format choices.
 
 ### f — Aggregator host wiring + graceful shutdown / drain ⬜
 Wire the aggregator **composition root** in `Program.cs` (currently a stub): read config
