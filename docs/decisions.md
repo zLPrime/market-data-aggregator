@@ -20,29 +20,33 @@ Each entry follows this template:
 
 ---
 
-## 2026-07-31 — Simulators: ship the two spec faults, pace by batch, three distinct formats
+## 2026-07-31 — Simulators: minimal faults, simplest correct mechanisms, three distinct formats
 
 **Decision:** The simulators implement exactly the two faults the spec names — **`drop`** (force-close
 the connection → reconnect) and **`dup on/off`** (immediate re-send → exercise dedup) — plus `status`
 /`help`. The richer vocabulary floated earlier (`garbage`, `pause`/`resume`, a runtime `rate`
 command) is **deferred** behind the same `CommandParser`/`FaultController` seam, each a one-case
-addition. Emit **rate is start-up config** (`--rate`), not a runtime fault; to hit the spec's
-500–1000 ticks/s without being throttled by the ~15 ms OS timer granularity, the feed emits a small
-**batch per tick** via a pure `EmitPlan` (interval floored at 10 ms, batch widened above it). Three
-formats differ on every axis the spec asks for: **A** JSON/number/Unix-millis, **B** JSON short-keys
+addition. `drop` is modelled as a **monotonic generation counter**, not a `CancellationTokenSource`:
+a connection captures the count when it opens and closes once it changes, so a drop ends the live
+connection while the next starts clean — no token lifecycle or dispose races. Emit **rate is start-up
+config** (`--rate`), not a runtime fault, emitted one quote per `PeriodicTimer` tick. Three formats
+differ on every axis the spec asks for: **A** JSON/number/Unix-millis, **B** JSON short-keys
 /string/ISO-8601, **C** pipe-delimited/positional/Unix-seconds.
 
-**Alternatives considered:** (a) Build the full fault vocabulary now. (b) One quote per `PeriodicTimer`
-tick (no batching). (c) Make `rate` a live fault command. (d) Formats differing only by field names.
+**Alternatives considered:** (a) Build the full fault vocabulary now. (b) Model `drop` with a
+swapped-and-cancelled `CancellationTokenSource`. (c) Make `rate` a live fault command. (d) Batch
+quotes per tick (`EmitPlan`) to beat OS timer granularity. (e) Formats differing only by field names.
 
 **Why:** The spec is explicit that simulators "may be simple" and names only drop + duplicate — so the
 minimal set is what's graded, and the seam keeps the rest cheap to add if time allows (YAGNI over
-(a)). One-quote-per-tick (b) caps a simulator near ~60 ticks/s on Windows, well short of the load
-scenario; batching per tick decouples throughput from timer resolution while the pacing math stays a
-pure, unit-tested function. Rate as config (over (c)) keeps the load steady and reproducible and
-avoids a fault whose only job is load, which the runtime `rate` command can add later. Spreading the
-formats across names, types and time encodings (over (d)) is what actually stresses the parser seam,
-which is the extensibility property under grading #5.
+(a)). The generation counter (over (b)) is a single `Interlocked` with no CTS to link, dispose, or
+guard against a cancel/dispose race, and the drop lands cleanly between ticks. Rate as config (over
+(c)) keeps the load steady and reproducible and avoids a fault whose only job is load. Batch pacing
+(d) was built and then **removed as premature**: it optimizes a throughput cap not demonstrated until
+the Phase h load scenario, so it can be reintroduced there if a real measurement shows one quote per
+tick falls short (YAGNI, "don't optimize prematurely"). Spreading the formats across names, types and
+time encodings (over (e)) is what actually stresses the parser seam — the extensibility property under
+grading #5.
 
 **Overview + diagrams:** [`design/simulators.md`](design/simulators.md).
 

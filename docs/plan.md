@@ -87,8 +87,9 @@ the WebSocket quote feed and the HTTP control endpoint **on one port**.
   format's two halves together. Formats: **A** JSON/number/Unix-millis, **B** JSON short-keys
   (`s,p,v,t`)/string/ISO-8601, **C** pipe-delimited/positional/Unix-seconds.
 - **Quote source.** `QuoteGenerator` — seeded per-ticker random walk, injectable clock, pure/unit-
-  tested. `EmitPlan` paces the feed as a **batch per tick** (10 ms floor) so throughput isn't capped
-  by OS timer granularity — three simulators at `--rate` sum to the 500–1000 ticks/s load scenario.
+  tested. The feed emits one quote per `PeriodicTimer(1/rate)` tick; three simulators at `--rate` sum
+  to the 500–1000 ticks/s load scenario. (Batch-per-tick pacing to beat OS timer granularity is
+  deferred to Phase h, if a measurement there shows one-per-tick falls short.)
 - **Fault control — two surfaces, one brain.** A thread-safe `FaultController` holds the mutable fault
   state; a `CommandParser` turns a text line into a call on it. Two thin adapters feed the *same*
   parser (SOLID):
@@ -102,8 +103,8 @@ the WebSocket quote feed and the HTTP control endpoint **on one port**.
 - **Channel:** none in the simulators. On the aggregator side each new simulator is a new
   `IMessageParser` + its own per-connector inbound channel — proving extensibility (a new exchange
   changes no existing code).
-- Decisions logged: control transport (two surfaces, one controller); minimal-vocabulary + batch
-  pacing + the three format choices.
+- Decisions logged: control transport (two surfaces, one controller); minimal vocabulary, drop as a
+  generation counter, one-quote-per-tick (batching deferred), and the three format choices.
 
 ### f — Aggregator host wiring + graceful shutdown / drain ⬜
 Wire the aggregator **composition root** in `Program.cs` (currently a stub): read config

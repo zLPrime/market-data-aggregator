@@ -61,12 +61,14 @@ flowchart LR
   price a little each step. It's seeded, so a run is reproducible, and it stamps each quote from an
   injectable clock — which keeps it unit-testable with no sockets or timers involved.
 - **Rate is a dial, set at start-up.** Three simulators at the default rate add up to the spec's
-  500–1000 ticks/s. To hit that without being throttled by the OS timer's ~15ms granularity, the
-  feed emits a **small batch per tick** (`EmitPlan`) rather than one quote per tick.
+  500–1000 ticks/s; the feed emits one quote per timer tick. (Batching several quotes per tick, to
+  push past the OS timer's ~15ms granularity, is deferred until the Phase h load run shows it's
+  actually needed — no sense optimizing a cap we haven't measured.)
 - **Faults you can trigger live.** The two the spec names:
   - **`drop`** force-closes the current connection, so the aggregator's reconnect path runs for real.
-    It's modelled as a swap-and-cancel signal: the live connection's token fires while the *next*
-    connection starts clean, so reconnection always succeeds.
+    It's a simple generation counter: a connection notes the count when it opens and closes once the
+    count changes, so the live connection ends while the *next* one starts clean — reconnection always
+    succeeds, with no cancellation-token bookkeeping.
   - **`dup on|off`** re-sends each quote immediately, so the aggregator's deduplication has something
     to catch.
   - `status` and `help` round out the console. Richer faults (`garbage`, `pause`/`resume`, a runtime
