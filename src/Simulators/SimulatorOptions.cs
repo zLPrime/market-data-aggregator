@@ -26,5 +26,46 @@ public sealed record SimulatorOptions
     public int Seed { get; init; } = Environment.TickCount;
 
     /// <summary>Parses CLI arguments, throwing <see cref="ArgumentException"/> on anything invalid.</summary>
-    public static SimulatorOptions Parse(string[] args) => throw new NotImplementedException();
+    public static SimulatorOptions Parse(string[] args)
+    {
+        int? port = null;
+        string? format = null;
+        var rate = 250;
+        int? seed = null;
+
+        if (args.Length % 2 != 0)
+            throw new ArgumentException("arguments must be --key value pairs");
+
+        for (var i = 0; i < args.Length; i += 2)
+        {
+            var key = args[i];
+            var value = args[i + 1];
+            switch (key)
+            {
+                case "--port": port = ParseInt(key, value); break;
+                case "--format": format = value.ToUpperInvariant(); break;
+                case "--rate": rate = ParseInt(key, value); break;
+                case "--seed": seed = ParseInt(key, value); break;
+                default: throw new ArgumentException($"unknown argument '{key}'");
+            }
+        }
+
+        if (port is null)
+            throw new ArgumentException("--port is required");
+        if (format is null)
+            throw new ArgumentException("--format is required");
+        if (format is not ("A" or "B" or "C"))
+            throw new ArgumentException($"--format must be A, B or C (got '{format}')");
+        if (rate <= 0)
+            throw new ArgumentException("--rate must be a positive number of ticks/second");
+
+        var options = new SimulatorOptions { Port = port.Value, Format = format, Rate = rate };
+        return seed is null ? options : options with { Seed = seed.Value };
+    }
+
+    private static int ParseInt(string key, string value) =>
+        int.TryParse(value, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : throw new ArgumentException($"{key} must be an integer (got '{value}')");
 }
