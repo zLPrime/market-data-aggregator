@@ -67,7 +67,10 @@ public sealed class FanInTests
     [Fact]
     public async Task Applies_deduplication_across_inputs()
     {
-        // The same quote arrives from two connectors (e.g. a resend after reconnect on one).
+        // One shared deduplicator is applied at the merge: a key already seen via one input is
+        // dropped when another input offers it (a per-input deduplicator would emit it twice).
+        // Note this is the same source id on both inputs — the same quote from two *different*
+        // sources is a different key, and by design not a duplicate.
         var shared = Tick("exchange-a", 1);
         var a = FilledInput([shared, Tick("exchange-a", 2)]);
         var b = FilledInput([shared, Tick("exchange-a", 3)]);
