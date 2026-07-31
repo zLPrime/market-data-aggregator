@@ -35,16 +35,20 @@ public sealed class QuoteFeed(
         // captured here (closing this connection) while the next connection captures a fresh one.
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(appStopping, faults.DropToken);
         var token = linked.Token;
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1.0 / options.Rate));
+        var plan = EmitPlan.For(options.Rate);
+        using var timer = new PeriodicTimer(plan.Interval);
 
         try
         {
             while (await timer.WaitForNextTickAsync(token))
             {
-                var frame = formatter.Serialize(generator.Next());
-                await SendAsync(socket, frame, token);
-                if (faults.DuplicateEnabled)
-                    await SendAsync(socket, frame, token); // spec fault: re-send exercises downstream dedup
+                for (var i = 0; i < plan.QuotesPerTick; i++)
+                {
+                    var frame = formatter.Serialize(generator.Next());
+                    await SendAsync(socket, frame, token);
+                    if (faults.DuplicateEnabled)
+                        await SendAsync(socket, frame, token); // spec fault: re-send exercises downstream dedup
+                }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)

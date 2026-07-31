@@ -8,6 +8,17 @@ namespace Simulators.Hosting;
 /// </summary>
 public readonly record struct EmitPlan(TimeSpan Interval, int QuotesPerTick)
 {
+    // Below ~10ms the OS timer can't tick reliably, so we stop shortening the interval and start
+    // widening the batch instead.
+    private const double MinIntervalSeconds = 0.01;
+
     /// <summary>Builds the pacing plan for <paramref name="ratePerSecond"/> quotes/second.</summary>
-    public static EmitPlan For(int ratePerSecond) => throw new NotImplementedException();
+    public static EmitPlan For(int ratePerSecond)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ratePerSecond);
+
+        var intervalSeconds = Math.Max(1.0 / ratePerSecond, MinIntervalSeconds);
+        var perTick = Math.Max(1, (int)Math.Round(ratePerSecond * intervalSeconds, MidpointRounding.AwayFromZero));
+        return new EmitPlan(TimeSpan.FromSeconds(intervalSeconds), perTick);
+    }
 }
