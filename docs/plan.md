@@ -23,10 +23,11 @@ Engineering decisions made along the way are logged separately in
 | b | WebSocket connector: reconnect + backoff + idle-timeout | ✅ | #2 |
 | c | Deduplicator (stress test **before** implementation) | 🔧 | — |
 | d | Batched DB writer (fault-injection test **before** implementation) + fan-in | 👉 next | — |
-| e | Remaining 2–3 exchange simulators + fault-injection endpoint | ⬜ | — |
-| f | Graceful shutdown / drain | ⬜ | — |
-| g | Monitoring counters + backpressure indicator | ⬜ | — |
-| h | README | ⬜ | — |
+| e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ⬜ | — |
+| f | Aggregator host wiring (composition root) + graceful shutdown / drain | ⬜ | — |
+| g | Monitoring counters + backpressure indicator + console stats line | ⬜ | — |
+| h | Integration test stand: orchestration script + xUnit e2e | ⬜ | — |
+| i | README | ⬜ | — |
 
 ---
 
@@ -57,7 +58,7 @@ sources. Stress test written BEFORE the implementation (N producers hammering on
 deduplicator; assert no duplicates escape and no races), plus a rotation-boundary race test.
 - **Key:** `(Source, Ticker, Price, Volume, Timestamp)` — dedup re-sends *within* a source.
 - **Window:** two time-bucketed generations (retention 1x–2x), O(1) eviction; `TrackedKeys`
-  gauge witnesses bounded memory. Key + window to be documented in the README (Phase h).
+  gauge witnesses bounded memory. Key + window to be documented in the README (Phase i).
 - **Fan-in moved to Phase d** — it needs the outbound channel + DB-writer consumer to exist.
 
 ### d — Batched DB writer ⬜
@@ -70,16 +71,34 @@ not a swallowed exception.
 - **Channel:** consumes the **shared outbound bounded** `Channel<NormalizedTick>`; its
   fill level is the backpressure signal (see Phase g). Drains batches from the reader.
 
-### e — Exchange simulators ⬜
+### e — Exchange simulators + fault control ⬜
 The remaining 2–3 WebSocket "exchange" simulators, each in a **distinctly different**
 format (different field names / types / time encodings, e.g. `price` vs `p` vs `last`,
-string vs numeric price). Plus a **fault-injection command/endpoint** on each simulator
-(force disconnect, emit duplicates) to test aggregator resilience.
+string vs numeric price). Each simulator is an **ASP.NET Core Kestrel** host serving the
+WebSocket quote feed and an HTTP control endpoint **on one port**.
+- **Fault control — two surfaces, one brain.** A thread-safe `FaultController` holds the
+  mutable fault state; a `CommandParser` turns a text line into a call on it. Two thin
+  input adapters feed the *same* parser, so fault logic exists once (SOLID):
+  - **stdin CLI (manual):** a background console loop reads `Console.In`; typing `drop`,
+    `dup on/off`, `garbage on/off`, `pause`/`resume`, `rate <n>`, `status`, `help` mutates
+    fault state live and echoes the result.
+  - **HTTP endpoint (scripted):** `POST /fault` with the same command as the body, so the
+    test-stand script (Phase h) drives faults without a TTY (curl / `Invoke-RestMethod`).
+    The WebSocket feed and `/fault` share the single Kestrel port.
+- **Fault vocabulary:** `drop` (force-close client sockets → reconnect), `dup on/off`
+  (re-emit each tick as a duplicate → exercises dedup), `garbage on/off` (emit malformed
+  frames → exercises parser resilience + `ParseErrors`), `pause`/`resume` (stop emitting
+  but keep the socket open → exercises idle-timeout), `rate <n>` (ticks/sec → load).
 - **Channel:** none in the simulators. On the aggregator side each new simulator is a new
   `IMessageParser` + its own per-connector inbound channel — proving extensibility (a new
   exchange changes no existing code).
+- Decision to log: control transport (HTTP on the Kestrel data port vs control-WS vs stdin).
 
-### f — Graceful shutdown / drain ⬜
+### f — Aggregator host wiring + graceful shutdown / drain ⬜
+Wire the aggregator **composition root** in `Program.cs` (currently a stub): read config
+(simulator endpoints + DB conn string), build connectors → `FanIn` → `Deduplicator` →
+`BatchingTickWriter` → `NpgsqlTickStore`, and run under a host lifetime with `Ctrl+C`
+handling. This is the first point the system is manually runnable end-to-end.
 On stop: stop intake, complete channels, and flush already-accepted ticks to the DB within
 a bounded timeout. No silent loss of in-memory ticks on a clean shutdown.
 - **Channel:** orderly completion cascade — inbound writers `Complete()` → dedup drains →
@@ -87,12 +106,32 @@ a bounded timeout. No silent loss of in-memory ticks on a clean shutdown.
 
 ### g — Monitoring counters + backpressure indicator ⬜
 Counters for processed / written / dropped ticks (per source and aggregate); log key
-events (connect/disconnect/errors). Expose a backpressure gauge.
+events (connect/disconnect/errors). Expose a backpressure gauge. Surface it all to the
+**console**: structured `ILogger` events for connect/disconnect/reconnect-with-backoff/
+parse-error/batch-written/batch-dropped, plus a **once-per-second stats line** (recv/s,
+deduped, written, dropped, channel fill %, tracked keys, conns up) — the live dashboard
+watched during manual testing.
 - **Channel:** read the outbound channel's occupancy (`Reader.Count` vs capacity) as the
   live backpressure indicator. Per-connector `Received` / `ParseErrors` counters already
   exist from Phase b.
 
-### h — README ⬜
+### h — Integration test stand ⬜
+The end-to-end harness that runs the **real** aggregator against **live** simulators, both
+for humans and CI.
+- **Orchestration script** (`scripts/teststand.ps1` primary + `.sh` twin): `docker run`
+  Postgres → `dotnet build` → launch 3 simulators + aggregator as background processes
+  (logs tee'd to `artifacts/`) → drive the spec's checked scenarios via `POST /fault` and
+  `docker stop/start`, asserting observable DB/log outcomes and printing PASS/FAIL:
+  steady load, source drop + reconnect (others unaffected), duplicates (distinct ≈ total),
+  bad data (`ParseErrors` climbs, process survives), DB outage (`dropped`/retry, recovers),
+  graceful shutdown (final batch drains). It is the executable form of the README runbook,
+  so manual and scripted paths never drift.
+- **xUnit e2e (CI-gating):** the same four+ scenarios asserted hermetically via
+  Testcontainers Postgres + in-process simulators, so `dotnet test` covers them without
+  Docker-orchestration flakiness. Skips cleanly when Docker is absent (as Phase d does).
+- **Channel:** none new — this phase only exercises the assembled pipeline.
+
+### i — README ⬜
 How to run simulators, aggregator, and the DB. Key engineering decisions and trade-offs:
 dedup model (key + window), DB write strategy, DB-error behavior, reconnection. Known
 limitations (what was intentionally left out and why).

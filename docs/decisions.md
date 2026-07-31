@@ -20,6 +20,34 @@ Each entry follows this template:
 
 ---
 
+## 2026-07-30 — Fault control: two surfaces (stdin CLI + HTTP) over one controller; script + xUnit e2e
+
+**Decision:** Each simulator exposes fault injection through a single thread-safe
+`FaultController` (state) + `CommandParser` (text → call), driven by two thin input adapters:
+a **stdin console loop** for manual testing and an **HTTP `POST /fault`** endpoint for scripted
+control. Simulators are hosted on **ASP.NET Core Kestrel**, so the WebSocket quote feed and
+`/fault` share **one port**. Fault vocabulary: `drop`, `dup on/off`, `garbage on/off`,
+`pause`/`resume`, `rate <n>`. The end-to-end test stand ships as **both** an orchestration script
+(`scripts/teststand.*`, real processes + real Postgres, human-watchable) **and** a hermetic
+Testcontainers-backed **xUnit e2e** that gates CI.
+
+**Alternatives considered:** For control transport — (a) a dedicated `/control` WebSocket path
+(pure-WS, no HTTP), (b) stdin-only driven by piping into each process. For the harness — script
+only, or xUnit e2e only.
+
+**Why:** One controller behind two adapters means fault logic exists once (SOLID) and a new fault
+type or a third driver touches one place — the manual and scripted paths can never diverge in
+behaviour. HTTP-on-Kestrel makes scripted control trivially curl-able and keeps the simulator a
+single idiomatic .NET host; a control-WS (a) would force the script to speak WebSocket, and
+stdin-only (b) is awkward to orchestrate across several background processes. Shipping both harness
+forms splits the two jobs cleanly: the script boots the *real* system so a human can watch real
+console logs react to real faults (grading #2), while the xUnit e2e asserts the four checked
+scenarios deterministically in `dotnet test` (grading #6) and skips when Docker is absent. Trade-off:
+Kestrel adds an ASP.NET Core dependency to the Simulators project — accepted, since a robust WS
+server is wanted anyway and it removes hand-rolled `HttpListener`/WS plumbing.
+
+---
+
 ## 2026-07-29 — Deduplicator: full-tuple key + two-generation time window
 
 **Decision:** The dedup key is all five identity fields —
