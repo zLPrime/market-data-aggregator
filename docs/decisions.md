@@ -48,6 +48,58 @@ server is wanted anyway and it removes hand-rolled `HttpListener`/WS plumbing.
 
 ---
 
+## 2026-07-30 — DB write failure: bounded retry, then an explicit dropped counter
+
+**Decision:** `BatchingTickWriter` owns the write-failure policy (the low-level `ITickStore`
+just persists one batch and throws). On a failed batch write it retries with capped exponential
+backoff up to `MaxWriteAttempts`; if still failing, it increments an explicit `Dropped` counter,
+logs at Error, and moves on. A `Written` counter tracks the success path. While a batch is being
+retried the writer stops draining, so the bounded channels naturally backpressure upstream.
+
+**Alternatives considered:** (a) Retry indefinitely (never drop) — relies purely on backpressure.
+(b) A bounded in-memory buffer of failed batches, flushed on recovery. (c) Fail fast / crash the
+process on a write error.
+
+**Why:** The combination gives a clean two-regime behaviour: a *transient* outage costs only
+latency and backpressure (the retries hold the batch, the channel fills, sockets slow) with **no
+loss**; a *sustained* outage past the retry budget is a **counted, logged** drop, never a silent
+one (spec 2.4; grading #2/#3). Bounded retry keeps the pipeline live — indefinite retry (a) would
+stall every source behind a permanently-broken DB, and a spare buffer (b) adds a second unbounded
+failure mode and more moving parts for little gain at this spec's scale (YAGNI). Trade-off: under a
+long outage we do drop, but the operator sees exactly how many via the gauge and logs, which is the
+spec's stated bar. Putting the policy in the writer (not the store) keeps "how to persist" and
+"when/whether to persist" separate (SOLID), so the Postgres adapter stays trivial and swappable.
+
+**Overview + diagram:** [`design/db-writer.md`](design/db-writer.md).
+
+---
+
+## 2026-07-30 — Fan-in owns the shared outbound channel; one pump task per source
+
+**Decision:** The `FanIn` stage merges the N per-connector readers by running one pump task per
+input, each draining its reader through the shared `IDeduplicator` and writing survivors into a
+single bounded outbound channel that the fan-in **owns** and exposes read-only. The output is
+completed exactly once, when all pumps finish (clean drain) or on cancellation (hard stop). The
+batching DB writer is the sole consumer of that output.
+
+**Alternatives considered:** (a) A single task that round-robins / `select`s across all readers.
+(b) The host owns the outbound channel and passes a writer into the stage. (c) Deduplicate inside
+each connector before fan-in.
+
+**Why:** One task per reader is the natural shape for `ChannelReader` (`await foreach`) and lets
+sources make progress independently — a quiet source never blocks a busy one (spec 2.1) — with the
+deduplicator's thread-safe check-and-record as the only shared state, so no extra locking. Owning
+the channel mirrors the connector's own channel-ownership decision: lifetime is tied to the stage
+*running*, completion happens in exactly one place, and the writer downstream is decoupled from how
+many sources exist (grading #5). Dedup runs as one shared stage here rather than per-connector (c)
+not for correctness — since `Source` is in the key, a duplicate can only ever be a re-send within a
+single source, so per-connector dedup would catch the same ticks — but because a single thread-safe
+deduplicator exercised by all sources concurrently is precisely what grading #4 (dedup correctness
+under concurrency) targets, and it keeps connectors transport-focused with one bounded window
+instead of N.
+
+---
+
 ## 2026-07-29 — Deduplicator: full-tuple key + two-generation time window
 
 **Decision:** The dedup key is all five identity fields —

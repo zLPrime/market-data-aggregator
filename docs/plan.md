@@ -21,8 +21,8 @@ Engineering decisions made along the way are logged separately in
 |-------|-------------|--------|----|
 | a | Core abstractions (interfaces only) | ✅ | #1 |
 | b | WebSocket connector: reconnect + backoff + idle-timeout | ✅ | #2 |
-| c | Deduplicator (stress test **before** implementation) | 🔧 | — |
-| d | Batched DB writer (fault-injection test **before** implementation) + fan-in | 👉 next | — |
+| c | Deduplicator (stress test **before** implementation) | ✅ | #4 |
+| d | Batched DB writer (fault-injection test **before** implementation) + fan-in | 🔧 | — |
 | e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ⬜ | — |
 | f | Aggregator host wiring (composition root) + graceful shutdown / drain | ⬜ | — |
 | g | Monitoring counters + backpressure indicator + console stats line | ⬜ | — |
@@ -52,7 +52,7 @@ transport (`IWebSocketConnection`) and format (`IMessageParser`) seams.
   never on a socket drop.
 - Decisions logged: idle-via-linked-CTS, backoff-reset-on-first-frame, two-seam design.
 
-### c — Deduplicator 🔧 IN REVIEW
+### c — Deduplicator ✅
 Thread-safe `IDeduplicator` filtering duplicates arriving concurrently from multiple
 sources. Stress test written BEFORE the implementation (N producers hammering one
 deduplicator; assert no duplicates escape and no races), plus a rotation-boundary race test.
@@ -61,15 +61,22 @@ deduplicator; assert no duplicates escape and no races), plus a rotation-boundar
   gauge witnesses bounded memory. Key + window to be documented in the README (Phase i).
 - **Fan-in moved to Phase d** — it needs the outbound channel + DB-writer consumer to exist.
 
-### d — Batched DB writer ⬜
+### d — Batched DB writer 🔧 IN REVIEW
 Persist ticks to Postgres with batching (size + time triggers). **Fault-injection test
 written BEFORE the implementation** (DB unavailable / write error → no silent loss).
-Write-failure strategy: retry / bounded buffer / explicit dropped-counter — a decision,
-not a swallowed exception.
-- **Fan-in (moved from c):** merge the N per-connector inbound readers, run each through the
-  deduplicator, and write survivors to the shared outbound channel this writer drains.
-- **Channel:** consumes the **shared outbound bounded** `Channel<NormalizedTick>`; its
-  fill level is the backpressure signal (see Phase g). Drains batches from the reader.
+- **`BatchingTickWriter`** owns the batching (size or time trigger via a per-batch flush CTS)
+  and the write-failure policy: **retry with capped backoff up to `MaxWriteAttempts`, then count
+  the batch in an explicit `Dropped` gauge** — a bounded-loss decision, never a swallowed
+  exception. `Written`/`Dropped` counters feed Phase g. The low-level `NpgsqlTickStore` stays a
+  dumb "one binary COPY per batch, throw on failure" adapter (SOLID).
+- **`FanIn` (moved from c):** one pump task per connector reader, each draining through the shared
+  thread-safe deduplicator into the **shared outbound bounded** channel it owns; output completed
+  exactly once on drain/cancel. Concurrent no-loss/no-dup asserted under contention.
+- **Channel:** the fan-in owns the shared outbound `Channel<NormalizedTick>`; its fill level is
+  the backpressure signal (see Phase g). The writer drains batches from it.
+- **DB test:** Testcontainers spins up a throwaway `postgres:17`, verifies a batch round-trips via
+  binary COPY, and skips when Docker is absent so `dotnet test` stays green everywhere.
+- Decisions logged: write-failure strategy, fan-in owns the outbound channel.
 
 ### e — Exchange simulators + fault control ⬜
 The remaining 2–3 WebSocket "exchange" simulators, each in a **distinctly different**
