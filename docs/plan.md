@@ -22,8 +22,8 @@ Engineering decisions made along the way are logged separately in
 | a | Core abstractions (interfaces only) | ✅ | #1 |
 | b | WebSocket connector: reconnect + backoff + idle-timeout | ✅ | #2 |
 | c | Deduplicator (stress test **before** implementation) | ✅ | #4 |
-| d | Batched DB writer (fault-injection test **before** implementation) + fan-in | 🔧 | — |
-| e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ⬜ | — |
+| d | Batched DB writer (fault-injection test **before** implementation) + fan-in | ✅ | #10 |
+| e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | 🔧 | — |
 | f | Aggregator host wiring (composition root) + graceful shutdown / drain | ⬜ | — |
 | g | Monitoring counters + backpressure indicator + console stats line | ⬜ | — |
 | h | Integration test stand: orchestration script + xUnit e2e | ⬜ | — |
@@ -61,7 +61,7 @@ deduplicator; assert no duplicates escape and no races), plus a rotation-boundar
   gauge witnesses bounded memory. Key + window to be documented in the README (Phase i).
 - **Fan-in moved to Phase d** — it needs the outbound channel + DB-writer consumer to exist.
 
-### d — Batched DB writer 🔧 IN REVIEW
+### d — Batched DB writer ✅
 Persist ticks to Postgres with batching (size + time triggers). **Fault-injection test
 written BEFORE the implementation** (DB unavailable / write error → no silent loss).
 - **`BatchingTickWriter`** owns the batching (size or time trigger via a per-batch flush CTS)
@@ -78,7 +78,7 @@ written BEFORE the implementation** (DB unavailable / write error → no silent 
   binary COPY, and skips when Docker is absent so `dotnet test` stays green everywhere.
 - Decisions logged: write-failure strategy, fan-in owns the outbound channel.
 
-### e — Exchange simulators + fault control ⬜
+### e — Exchange simulators + fault control 🔧
 The remaining 2–3 WebSocket "exchange" simulators, each in a **distinctly different**
 format (different field names / types / time encodings, e.g. `price` vs `p` vs `last`,
 string vs numeric price). Each simulator is an **ASP.NET Core Kestrel** host serving the
