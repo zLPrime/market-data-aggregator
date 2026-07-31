@@ -91,8 +91,12 @@ sources make progress independently — a quiet source never blocks a busy one (
 deduplicator's thread-safe check-and-record as the only shared state, so no extra locking. Owning
 the channel mirrors the connector's own channel-ownership decision: lifetime is tied to the stage
 *running*, completion happens in exactly one place, and the writer downstream is decoupled from how
-many sources exist (grading #5). Dedup must live here, not per-connector (c), because a duplicate
-can arrive across two sources — only a shared deduplicator at the merge point catches that.
+many sources exist (grading #5). Dedup runs as one shared stage here rather than per-connector (c)
+not for correctness — since `Source` is in the key, a duplicate can only ever be a re-send within a
+single source, so per-connector dedup would catch the same ticks — but because a single thread-safe
+deduplicator exercised by all sources concurrently is precisely what grading #4 (dedup correctness
+under concurrency) targets, and it keeps connectors transport-focused with one bounded window
+instead of N.
 
 ---
 

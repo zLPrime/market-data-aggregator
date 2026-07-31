@@ -39,9 +39,13 @@ flowchart TD
 - **Merge many sources into one.** Each connector has its own belt of ticks; the fan-in reads all
   of them at once and pours them onto a single shared belt. One quiet source never holds up a busy
   one — they're read independently.
-- **Deduplicate at the meeting point.** The duplicate check happens *where the streams merge*, not
-  inside each source — because the same quote can arrive from two different sources, and only a
-  shared checker sitting at the junction can catch that.
+- **Deduplicate at the meeting point.** A duplicate here is a *re-send from one source* (e.g. a
+  quote an exchange repeats after reconnecting) — the source is part of the fingerprint, so the same
+  quote from two different exchanges counts as two real observations, not a duplicate. The check
+  runs as one **shared, thread-safe** stage that every source passes through, rather than a separate
+  checker inside each connector: that keeps connectors focused on transport, uses one memory window
+  instead of many, and is exactly the "dedup stays correct while many sources hit it at once"
+  property the system is graded on.
 - **Save in batches, not one-at-a-time.** Writing every tick individually would hammer the
   database. Instead ticks are grouped and written together, triggered by **either** a full batch
   **or** a short timer — so busy periods write big efficient batches and quiet periods still don't
