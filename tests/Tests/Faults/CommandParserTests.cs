@@ -64,10 +64,10 @@ public sealed class CommandParserTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("bogus")]
-    public void Unrecognized_or_empty_input_returns_a_message_without_throwing(string line)
+    public void Unrecognized_or_empty_input_points_to_help_without_throwing(string line)
     {
-        var result = Parser.Execute(line);
+        var result = Parser.Execute(line); // never throws — both adapters feed it arbitrary text
 
-        Assert.False(string.IsNullOrWhiteSpace(result)); // a helpful message, never an exception
+        Assert.Contains("help", result, StringComparison.OrdinalIgnoreCase); // steers the user, unlike a valid command
     }
 }
