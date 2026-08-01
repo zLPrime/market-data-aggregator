@@ -16,6 +16,12 @@ public sealed class FanIn
     private readonly IDeduplicator _deduplicator;
     private readonly ILogger<FanIn> _logger;
     private readonly Channel<NormalizedTick> _output;
+    private readonly int _outputCapacity;
+
+    // Counters. Written by the pump tasks (many), read by external monitoring (Phase g), so via
+    // Interlocked for cross-thread visibility and atomic increment under concurrent pumps.
+    private long _accepted;
+    private long _deduplicated;
 
     public FanIn(
         IReadOnlyList<ChannelReader<NormalizedTick>> inputs,
@@ -26,6 +32,7 @@ public sealed class FanIn
         _inputs = inputs;
         _deduplicator = deduplicator;
         _logger = logger;
+        _outputCapacity = options.OutputCapacity;
 
         _output = Channel.CreateBounded<NormalizedTick>(new BoundedChannelOptions(options.OutputCapacity)
         {
@@ -37,6 +44,18 @@ public sealed class FanIn
 
     /// <summary>The merged, deduplicated outbound stream. Completes once all inputs have drained.</summary>
     public ChannelReader<NormalizedTick> Output => _output.Reader;
+
+    /// <summary>Unique ticks forwarded downstream.</summary>
+    public long Accepted => Interlocked.Read(ref _accepted);
+
+    /// <summary>Ticks dropped as exact re-sends by the deduplicator.</summary>
+    public long Deduplicated => Interlocked.Read(ref _deduplicated);
+
+    /// <summary>Items currently buffered on the outbound belt — the live backpressure signal.</summary>
+    public int OutboundCount => _output.Reader.Count;
+
+    /// <summary>Capacity of the outbound belt (its bound).</summary>
+    public int OutboundCapacity => _outputCapacity;
 
     /// <summary>
     /// Runs one pump task per input, each draining its reader through the deduplicator into the
@@ -75,7 +94,14 @@ public sealed class FanIn
         await foreach (var tick in input.ReadAllAsync(cancellationToken))
         {
             if (_deduplicator.TryAccept(tick))
+            {
+                Interlocked.Increment(ref _accepted);
                 await _output.Writer.WriteAsync(tick, cancellationToken);
+            }
+            else
+            {
+                Interlocked.Increment(ref _deduplicated);
+            }
         }
     }
 }

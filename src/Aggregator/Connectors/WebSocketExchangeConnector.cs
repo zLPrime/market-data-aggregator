@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Aggregator.Monitoring;
 using Microsoft.Extensions.Logging;
 using Trading.Core.Abstractions;
 
@@ -11,7 +12,7 @@ namespace Aggregator.Connectors;
 /// normalization from an <see cref="IMessageParser"/>, so a new exchange needs neither
 /// this class changed nor a new loop.
 /// </summary>
-public sealed class WebSocketExchangeConnector : IExchangeConnector
+public sealed class WebSocketExchangeConnector : IExchangeConnector, IConnectorMetrics
 {
     private readonly ConnectorOptions _options;
     private readonly IWebSocketConnectionFactory _connectionFactory;
@@ -24,6 +25,10 @@ public sealed class WebSocketExchangeConnector : IExchangeConnector
     // monitoring (Phase g), so mutated/read via Interlocked for cross-thread visibility.
     private long _received;
     private long _parseErrors;
+
+    // Connection gauge for monitoring. Single writer (the read-loop thread) toggles it around each
+    // connection's lifetime; the monitor only reads it, so volatile is sufficient — no lock needed.
+    private volatile bool _connected;
 
     public WebSocketExchangeConnector(
         string source,
@@ -60,6 +65,9 @@ public sealed class WebSocketExchangeConnector : IExchangeConnector
 
     /// <summary>Malformed frames that could not be parsed.</summary>
     public long ParseErrors => Interlocked.Read(ref _parseErrors);
+
+    /// <summary>Whether a socket is currently connected (between a successful connect and its drop).</summary>
+    public bool IsConnected => _connected;
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -106,6 +114,7 @@ public sealed class WebSocketExchangeConnector : IExchangeConnector
         {
             _logger.LogInformation("[{Source}] connecting", Source);
             await connection.ConnectAsync(_options.Uri, cancellationToken);
+            _connected = true;
             _logger.LogInformation("[{Source}] connected", Source);
 
             await ReadLoopAsync(connection, cancellationToken);
@@ -127,6 +136,7 @@ public sealed class WebSocketExchangeConnector : IExchangeConnector
         }
         finally
         {
+            _connected = false;
             await connection.DisposeAsync();
         }
     }

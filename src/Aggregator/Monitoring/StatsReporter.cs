@@ -32,5 +32,25 @@ public sealed class StatsReporter : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => RunAsync(stoppingToken);
 
     /// <summary>The reporting loop, exposed for direct (timer-driven) testing without the host.</summary>
-    public Task RunAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public async Task RunAsync(CancellationToken cancellationToken)
+    {
+        // Create the timer before the baseline capture so the timer is armed the moment the first
+        // snapshot is taken (the deterministic test advances time only once it observes that capture).
+        using var timer = new PeriodicTimer(_interval, _timeProvider);
+        var previous = _source.Capture();
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                var current = _source.Capture();
+                _logger.LogInformation("{Stats}", StatsLine.Format(previous, current));
+                previous = current;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal shutdown.
+        }
+    }
 }

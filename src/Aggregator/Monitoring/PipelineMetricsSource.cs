@@ -31,5 +31,32 @@ public sealed class PipelineMetricsSource : IMetricsSource
         _timeProvider = timeProvider;
     }
 
-    public PipelineMetrics Capture() => throw new NotImplementedException();
+    public PipelineMetrics Capture()
+    {
+        long received = 0;
+        long parseErrors = 0;
+        var connectionsUp = 0;
+        foreach (var connector in _connectors)
+        {
+            received += connector.Received;
+            parseErrors += connector.ParseErrors;
+            if (connector.IsConnected)
+                connectionsUp++;
+        }
+
+        return new PipelineMetrics
+        {
+            Timestamp = _timeProvider.GetUtcNow(),
+            Received = received,
+            ParseErrors = parseErrors,
+            Deduplicated = _fanIn.Deduplicated,
+            Written = _writer.Written,
+            Dropped = _writer.Dropped,
+            TrackedKeys = _deduplicator.TrackedKeys,
+            OutboundCount = _fanIn.OutboundCount,
+            OutboundCapacity = _fanIn.OutboundCapacity,
+            ConnectionsUp = connectionsUp,
+            SourceCount = _connectors.Count,
+        };
+    }
 }
