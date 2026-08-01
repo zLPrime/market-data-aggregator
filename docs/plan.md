@@ -23,8 +23,8 @@ Engineering decisions made along the way are logged separately in
 | b | WebSocket connector: reconnect + backoff + idle-timeout | ✅ | #2 |
 | c | Deduplicator (stress test **before** implementation) | ✅ | #4 |
 | d | Batched DB writer (fault-injection test **before** implementation) + fan-in | ✅ | #10 |
-| e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | 🔧 | — |
-| f | Aggregator host wiring (composition root) + graceful shutdown / drain | ⬜ | — |
+| e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ✅ | #12 |
+| f | Aggregator host wiring (composition root) + graceful shutdown / drain | 🔧 | — |
 | g | Monitoring counters + backpressure indicator + console stats line | ⬜ | — |
 | h | Integration test stand: orchestration script + xUnit e2e | ⬜ | — |
 | i | README | ⬜ | — |
@@ -78,7 +78,7 @@ written BEFORE the implementation** (DB unavailable / write error → no silent 
   binary COPY, and skips when Docker is absent so `dotnet test` stays green everywhere.
 - Decisions logged: write-failure strategy, fan-in owns the outbound channel.
 
-### e — Exchange simulators + fault control 🔧 IN REVIEW
+### e — Exchange simulators + fault control ✅
 The remaining 2 WebSocket "exchange" simulators (formats **B**, **C**; **A** exists from Phase b),
 each in a **distinctly different** format. Each simulator is an **ASP.NET Core Kestrel** host serving
 the WebSocket quote feed and the HTTP control endpoint **on one port**.
@@ -106,7 +106,7 @@ the WebSocket quote feed and the HTTP control endpoint **on one port**.
 - Decisions logged: control transport (two surfaces, one controller); minimal vocabulary, drop as a
   generation counter, one-quote-per-tick (batching deferred), and the three format choices.
 
-### f — Aggregator host wiring + graceful shutdown / drain ⬜
+### f — Aggregator host wiring + graceful shutdown / drain 🔧 IN PROGRESS
 Wire the aggregator **composition root** in `Program.cs` (currently a stub): read config
 (simulator endpoints + DB conn string), build connectors → `FanIn` → `Deduplicator` →
 `BatchingTickWriter` → `NpgsqlTickStore`, and run under a host lifetime with `Ctrl+C`
