@@ -8,6 +8,9 @@ namespace Simulators;
 /// </summary>
 public sealed record SimulatorOptions
 {
+    /// <summary>Default emit rate (quotes/second); three simulators at this rate sum to ~500–1000/s.</summary>
+    public const int DefaultRate = 250;
+
     /// <summary>Default instruments each simulator streams; kept small and shared across formats.</summary>
     public static readonly IReadOnlyList<string> DefaultTickers = ["BTC-USD", "ETH-USD", "SOL-USD"];
 
@@ -18,7 +21,7 @@ public sealed record SimulatorOptions
     public required string Format { get; init; }
 
     /// <summary>Quotes emitted per second per connection.</summary>
-    public int Rate { get; init; } = 250;
+    public int Rate { get; init; } = DefaultRate;
 
     public IReadOnlyList<string> Tickers { get; init; } = DefaultTickers;
 
@@ -30,7 +33,7 @@ public sealed record SimulatorOptions
     {
         int? port = null;
         string? format = null;
-        var rate = 250;
+        var rate = DefaultRate;
         int? seed = null;
 
         if (args.Length % 2 != 0)
