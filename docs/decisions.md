@@ -20,6 +20,46 @@ Each entry follows this template:
 
 ---
 
+## 2026-08-01 — Aggregator shutdown: a bounded, two-token drain
+
+**Decision:** Graceful shutdown runs in two phases with two separate cancellation sources. Phase 1
+cancels an **intake** token that stops only the connectors — each completes its inbound channel on
+`RunAsync` exit, leaving already-buffered ticks readable. Phase 2 lets the fan-in and writer keep
+running on a still-live **drain** token: the fan-in drains the completed inbound channels, completes
+the outbound belt, and the writer flushes its final partial batch before exiting. The host cancels
+the shutdown token after `DrainTimeout` (wired via `HostOptions.ShutdownTimeout`); only if that
+deadline is hit does the runner cancel the drain token to force a hard stop.
+
+**Alternatives considered:** (a) A single token cancelled everywhere at once — the simplest, but it
+tears down the fan-in and writer mid-flight, discarding every buffered-but-unwritten tick. (b) An
+explicit "final flush" entry point on the writer that ignores the deadline. (c) A `BackgroundService`
+whose default `StopAsync` just cancels its one `stoppingToken`.
+
+**Why:** No silent loss of accepted ticks is grading priority #2, and a single-token stop violates it
+directly. Two tokens map exactly onto the two things shutdown must do — *stop taking new input* and
+*finish writing what we already took* — and reuse the channel-completion contracts phases B–D already
+guarantee (a connector completes its channel only on run-exit; fan-in and writer flush-then-exit on
+completion), so the drain is just those contracts firing in order. The deadline keeps shutdown
+bounded; past it the writer's existing retry-then-count-as-dropped policy means the only loss is
+*counted and logged*, never silent. Option (b) adds a second write path for a case a downed DB loses
+anyway; (c) can't express the stop-intake-but-keep-draining split.
+
+## 2026-08-01 — Runtime config is only what an operator varies; schema stays ops-owned
+
+**Decision:** `appsettings.json` exposes exactly `Sources`, `Database.ConnectionString`
+(overridable by the `TRADING_DB` env var) and `DrainTimeout`. Every other knob (batch size, dedup
+window, channel capacities, backoff) keeps its code default. The aggregator does **not** create the
+`ticks` table at startup — `db/schema.sql` is applied by ops.
+
+**Alternatives considered:** (a) Bind every option class from config so all knobs are operator-tunable.
+(b) Run `CREATE TABLE IF NOT EXISTS` on startup so the system is turnkey.
+
+**Why:** The defaults are already spec-tuned; surfacing knobs nobody is turning is speculative config
+(YAGNI) with real validation cost. Keeping schema provisioning with ops (where `db/schema.sql` already
+lives, shared verbatim with the integration test) avoids the host silently owning a migration concern;
+a missing table surfaces loudly through the writer's drop counter rather than being masked by an
+auto-create that could hide a mis-pointed connection string.
+
 ## 2026-07-31 — Simulators: minimal faults, simplest correct mechanisms, three distinct formats
 
 **Decision:** The simulators implement exactly the two faults the spec names — **`drop`** (force-close
