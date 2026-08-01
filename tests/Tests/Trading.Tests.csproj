@@ -20,6 +20,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Trading.Core.csproj" />
     <ProjectReference Include="..\..\src\Aggregator\Aggregator.csproj" />
+    <ProjectReference Include="..\..\src\Simulators\Simulators.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The simulator integration test builds a real Kestrel host in-process, so the test
+         assembly needs the ASP.NET Core shared framework at compile time. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

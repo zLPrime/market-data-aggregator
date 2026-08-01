@@ -1,11 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Web SDK: Kestrel hosts the WebSocket quote feed and the POST /fault control
+       endpoint on one port. OutputType defaults to Exe and the ASP.NET Core shared
+       framework is referenced implicitly. -->
   <ItemGroup>
     <ProjectReference Include="..\Core\Trading.Core.csproj" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
 
 </Project>
