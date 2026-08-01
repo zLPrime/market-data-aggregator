@@ -32,8 +32,46 @@ public sealed record AggregatorOptions
     /// <c>Aggregator:Database:ConnectionString</c> (per the project runbook).
     /// </summary>
     /// <exception cref="InvalidOperationException">The configuration is missing or malformed.</exception>
-    public static AggregatorOptions Load(IConfiguration configuration) =>
-        throw new NotImplementedException();
+    public static AggregatorOptions Load(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var options = configuration.GetSection(SectionName).Get<AggregatorOptions>() ?? new AggregatorOptions();
+
+        // The TRADING_DB env var (a flat key) takes precedence over the appsettings value, so the
+        // connection string can be supplied at deploy time without editing the file (runbook).
+        var envConnectionString = configuration["TRADING_DB"];
+        var connectionString = !string.IsNullOrWhiteSpace(envConnectionString)
+            ? envConnectionString
+            : options.Database.ConnectionString;
+
+        options = options with { Database = new DatabaseOptions { ConnectionString = connectionString } };
+        Validate(options);
+        return options;
+    }
+
+    /// <summary>Fails loudly on anything that would produce a silently broken host.</summary>
+    private static void Validate(AggregatorOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Database.ConnectionString))
+            throw new InvalidOperationException(
+                "No database connection string configured. Set 'Aggregator:Database:ConnectionString' " +
+                "or the TRADING_DB environment variable.");
+
+        if (options.Sources.Count == 0)
+            throw new InvalidOperationException("No sources configured under 'Aggregator:Sources'.");
+
+        for (var i = 0; i < options.Sources.Count; i++)
+        {
+            var source = options.Sources[i];
+            if (string.IsNullOrWhiteSpace(source.Name))
+                throw new InvalidOperationException($"Source at index {i} is missing 'Name'.");
+            if (source.Uri is null)
+                throw new InvalidOperationException($"Source '{source.Name}' is missing 'Uri'.");
+            if (string.IsNullOrWhiteSpace(source.Format))
+                throw new InvalidOperationException($"Source '{source.Name}' is missing 'Format'.");
+        }
+    }
 }
 
 /// <summary>Database connection settings.</summary>

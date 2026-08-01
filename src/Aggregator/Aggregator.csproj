@@ -14,4 +14,10 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Copied next to the binary so the host finds it when run from anywhere (the plain
+         Microsoft.NET.Sdk does not include appsettings.json by default). -->
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
