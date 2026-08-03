@@ -20,6 +20,35 @@ Each entry follows this template:
 
 ---
 
+## 2026-08-03 — Integration test stand: hermetic xUnit e2e; orchestration script deferred
+
+**Decision:** Phase h ships the **hermetic xUnit e2e only**. It assembles the *real* pipeline graph
+in-process — N `SimulatorApp`s on port 0 → real `WebSocketExchangeConnector`s + parsers → real
+`FanIn`/`Deduplicator` → real `BatchingTickWriter` → real `NpgsqlTickStore` over a Testcontainers
+`postgres:17` — and asserts on the DB and `PipelineMetricsSource.Capture()`. It covers the **core
+three** scenarios (steady load lands in DB; source drop + reconnect via `POST /fault drop` with the
+other sources unaffected; `dup on` duplicates deduped so the DB holds no duplicate key tuple). Each
+test drains via `StopAsync(CancellationToken.None)` before asserting and is bounded by a 30 s guard;
+the class shares one container and `TRUNCATE`s between tests. The shell orchestration script
+(`scripts/teststand.*`) named in the earlier plan is **deferred** to a follow-up.
+
+**Alternatives considered:** (a) Ship both the script *and* the e2e now, per the original Phase-e
+decision. (b) Assert all spec scenarios (adding bad-data survival and DB-outage recovery). (c) A fresh
+Postgres container per test (via `IAsyncLifetime`) instead of a shared, truncated one.
+
+**Why:** The e2e is the CI-gating, non-flaky half and reuses building blocks already proven in Phase e
+(`SimulatorApp` over a real WebSocket + `POST /fault`) and Phase d (the Testcontainers Docker-skip
+pattern), so it composes the real system with almost no new production surface — the highest coverage
+per unit of complexity (grading #6, repo simplicity rule). The process-orchestration script (a) adds
+shell-fragility and a second code path for what the README runbook (Phase i) can describe in prose; it
+buys a human-watchable demo the e2e doesn't, so it's deferred, not dropped. The core three (over (b))
+are exactly the graded failure modes — no-loss drain, reconnect isolation, dedup under real
+concurrency — while bad-data/DB-outage recovery are already pinned by focused Phase-b/d tests, so
+re-asserting them end-to-end mostly buys runtime and flakiness. A shared, truncated container (over
+(c)) keeps the suite to one Docker start instead of three.
+
+---
+
 ## 2026-08-01 — Monitoring: read-model snapshot + a separate stats-reporter service
 
 **Decision:** Surface the pipeline's counters through a `PipelineMetricsSource.Capture()` that reads

@@ -25,8 +25,8 @@ Engineering decisions made along the way are logged separately in
 | d | Batched DB writer (fault-injection test **before** implementation) + fan-in | ✅ | #10 |
 | e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ✅ | #12 |
 | f | Aggregator host wiring (composition root) + graceful shutdown / drain | ✅ | #13 |
-| g | Monitoring counters + backpressure indicator + console stats line | 🔧 | — |
-| h | Integration test stand: orchestration script + xUnit e2e | ⬜ | — |
+| g | Monitoring counters + backpressure indicator + console stats line | ✅ | #14 |
+| h | Integration test stand: hermetic xUnit e2e (orchestration script deferred) | 🔧 | — |
 | i | README | ⬜ | — |
 
 ---
@@ -116,7 +116,7 @@ a bounded timeout. No silent loss of in-memory ticks on a clean shutdown.
 - **Channel:** orderly completion cascade — inbound writers `Complete()` → dedup drains →
   outbound `Complete()` → DB writer drains remaining batches, all inside a drain timeout.
 
-### g — Monitoring counters + backpressure indicator 🔧 IN PROGRESS
+### g — Monitoring counters + backpressure indicator ✅
 Counters for processed / written / dropped ticks (per source and aggregate); log key
 events (connect/disconnect/errors). Expose a backpressure gauge. Surface it all to the
 **console**: structured `ILogger` events for connect/disconnect/reconnect-with-backoff/
@@ -127,20 +127,26 @@ watched during manual testing.
   live backpressure indicator. Per-connector `Received` / `ParseErrors` counters already
   exist from Phase b.
 
-### h — Integration test stand ⬜
-The end-to-end harness that runs the **real** aggregator against **live** simulators, both
-for humans and CI.
-- **Orchestration script** (`scripts/teststand.ps1` primary + `.sh` twin): `docker run`
-  Postgres → `dotnet build` → launch 3 simulators + aggregator as background processes
-  (logs tee'd to `artifacts/`) → drive the spec's checked scenarios via `POST /fault` and
-  `docker stop/start`, asserting observable DB/log outcomes and printing PASS/FAIL:
-  steady load, source drop + reconnect (others unaffected), duplicates (distinct ≈ total),
-  bad data (`ParseErrors` climbs, process survives), DB outage (`dropped`/retry, recovers),
-  graceful shutdown (final batch drains). It is the executable form of the README runbook,
-  so manual and scripted paths never drift.
-- **xUnit e2e (CI-gating):** the same four+ scenarios asserted hermetically via
-  Testcontainers Postgres + in-process simulators, so `dotnet test` covers them without
-  Docker-orchestration flakiness. Skips cleanly when Docker is absent (as Phase d does).
+### h — Integration test stand 🔧 IN PROGRESS
+The end-to-end harness that runs the **real** aggregator pipeline against **live** in-process
+simulators over a real Postgres — the CI-gating proof that the assembled system behaves.
+- **Scope (kept deliberately simple):** ship the **hermetic xUnit e2e** only; the shell
+  orchestration script is **deferred** (see below). The e2e is the higher-value, non-flaky
+  piece and is what `dotnet test` / CI actually run.
+- **xUnit e2e (CI-gating):** assembles the *real* graph with no fakes — N in-process
+  `SimulatorApp`s (port 0) → real `WebSocketExchangeConnector`s + format parsers → real
+  `FanIn`/`Deduplicator` → real `BatchingTickWriter` → real `NpgsqlTickStore` over a
+  Testcontainers `postgres:17`. Asserts on DB rows + `PipelineMetricsSource.Capture()`.
+  Covers the **core three** grading-priority scenarios: steady load lands in the DB
+  (`Written` == rows, all sources present), source drop + reconnect via `POST /fault drop`
+  (others keep flowing), and duplicates via `dup on` deduped (no duplicate key tuples in the
+  DB, `Deduplicated > 0`). Skips cleanly when Docker is absent (as Phase d does).
+- **Deferred — orchestration script** (`scripts/teststand.ps1` + `.sh`): the process-level
+  runbook that boots the real host + `docker` Postgres for a human to watch. Left for a
+  follow-up because the xUnit e2e already gates CI and the script is shell-fragile; the
+  README (Phase i) will document the manual runbook it would automate.
+- **TDD note:** this is a **test-only** phase — the e2e exercises already-shipped production
+  code, so the red/green split doesn't apply; it ships as a single test commit after docs.
 - **Channel:** none new — this phase only exercises the assembled pipeline.
 
 ### i — README ⬜
