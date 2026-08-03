@@ -16,6 +16,7 @@ using Simulators.Faults;
 using Simulators.Hosting;
 using Trading.Core.Abstractions;
 using Trading.Tests.Fakes;
+using Trading.Tests.Fixtures;
 
 namespace Trading.Tests.EndToEnd;
 

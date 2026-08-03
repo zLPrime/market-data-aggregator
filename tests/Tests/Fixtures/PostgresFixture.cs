@@ -1,14 +1,15 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
 
-namespace Trading.Tests.EndToEnd;
+namespace Trading.Tests.Fixtures;
 
 /// <summary>
-/// One throwaway <c>postgres:17</c> shared by every end-to-end test in the class (xUnit runs a
-/// class's tests sequentially, so a single container with a <see cref="ResetAsync"/> between tests
-/// is safe and keeps the suite to one Docker start). Provisioned from the same <c>db/schema.sql</c>
-/// production uses. When no Docker daemon is reachable it records the reason instead of throwing, so
-/// the tests can <see cref="Xunit.Skip"/> rather than fail on machines without it (as Phase d does).
+/// The shared Postgres provisioning fixture: starts one throwaway <c>postgres:17</c> per consuming
+/// test class (via <c>IClassFixture</c>), applies the same <c>db/schema.sql</c> production uses, and
+/// tears it down afterwards. When no Docker daemon is reachable it records the reason instead of
+/// throwing, so tests can <see cref="Xunit.Skip"/> rather than fail on machines without it (as
+/// Phase d established). A class that runs several tests against it can call <see cref="ResetAsync"/>
+/// to clear the table between them (xUnit runs a class's tests sequentially, so that is safe).
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
