@@ -23,10 +23,11 @@ namespace Trading.Tests.EndToEnd;
 /// The Phase h test stand: the <b>real</b> aggregator pipeline (connectors → fan-in → deduplicator →
 /// batching writer → <see cref="NpgsqlTickStore"/>) run against <b>live</b> in-process
 /// <see cref="SimulatorApp"/>s over real WebSockets and a real Postgres — no fakes anywhere in the
-/// data path. Asserts the three grading-priority failure modes end to end: a steady load lands in the
-/// DB with no loss (grading #1/#3), a source drop driven through the real <c>POST /fault</c> surface
-/// reconnects without disrupting the others (grading #2), and duplicate re-sends are removed before
-/// the database (grading #4). Skips cleanly when Docker is absent.
+/// data path. Asserts the spec's checked failure modes end to end: a steady load lands in the DB with
+/// no loss (grading #1/#3), a source drop driven through the real <c>POST /fault</c> surface
+/// reconnects without disrupting the others (grading #2), duplicate re-sends are removed before the
+/// database (grading #4), and a DB outage counts dropped batches then recovers with nothing lost
+/// silently (spec 2.4; grading #2/#3). Skips cleanly when Docker is absent.
 /// </summary>
 public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
 {
@@ -115,6 +116,42 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         Assert.Equal(snapshot.Written, rows); // writer count matches the DB
     }
 
+    [SkippableFact]
+    public async Task A_database_outage_counts_dropped_batches_and_the_writer_recovers()
+    {
+        Skip.If(_db.DockerUnavailable is not null, $"Docker not available: {_db.DockerUnavailable}");
+        await _db.ResetAsync();
+        // The writer exhausts 5 attempts (~3 s of backoff) before counting a drop, so give the outage
+        // headroom; every wait still trips the guard into a visible failure rather than hanging.
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        await using var system = await StartSystemAsync(("exchange-a", "A"), ("exchange-b", "B"));
+
+        // Healthy: ticks are landing in the DB.
+        await WaitUntilAsync(() => system.Metrics.Capture().Written > 0, guard.Token);
+
+        system.SetDatabaseFaulted(true); // the store now rejects every write, as a downed DB would
+
+        // A sustained outage exhausts the retries, and the batch is counted as dropped — the
+        // conscious bounded-loss strategy (spec 2.4), never a swallowed exception.
+        await WaitUntilAsync(() => system.Metrics.Capture().Dropped > 0, guard.Token);
+        var writtenBeforeRecovery = system.Metrics.Capture().Written;
+
+        system.SetDatabaseFaulted(false); // the database comes back
+
+        // Recovery: once the DB is back the writer resumes persisting new batches.
+        await WaitUntilAsync(() => system.Metrics.Capture().Written > writtenBeforeRecovery, guard.Token);
+
+        await system.StopAsync(); // drain what's left
+
+        var snapshot = system.Metrics.Capture();
+        Assert.True(snapshot.Dropped > 0, "a sustained outage should count dropped batches");
+        Assert.True(snapshot.Written > writtenBeforeRecovery, "the writer should resume after recovery");
+        // No silent loss: every received tick is accounted for — deduplicated, written, or explicitly dropped.
+        Assert.Equal(snapshot.Received, snapshot.Deduplicated + snapshot.Written + snapshot.Dropped);
+        Assert.Equal(snapshot.Written, await RowCountAsync()); // the DB agrees with the written counter
+    }
+
     /// <summary>
     /// Boots one in-process simulator per source and assembles the real pipeline over them — the same
     /// graph <see cref="AggregatorHost"/> builds, but pointed at the live simulator URIs and started.
@@ -136,7 +173,9 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         var deduplicator = new Deduplicator(new DeduplicatorOptions(), TimeProvider.System);
         var fanIn = new FanIn(
             connectors.Select(c => c.Ticks).ToArray(), deduplicator, new FanInOptions(), NullLogger<FanIn>.Instance);
-        var store = new NpgsqlTickStore(_db.DataSource!);
+        // The real store, behind a toggle so a test can inject a DB outage at the seam (see the
+        // outage test) while healthy and recovery writes still hit the real database.
+        var store = new ToggleableFaultStore(new NpgsqlTickStore(_db.DataSource!));
         var writer = new BatchingTickWriter(
             fanIn.Output,
             store,
@@ -147,7 +186,7 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         var metrics = new PipelineMetricsSource(connectors, fanIn, deduplicator, writer, TimeProvider.System);
 
         await pipeline.StartAsync(CancellationToken.None);
-        return new RunningSystem(nodes, connectors, pipeline, metrics, lifetime);
+        return new RunningSystem(nodes, connectors, pipeline, metrics, store, lifetime);
     }
 
     private async Task<long> RowCountAsync() => await ScalarAsync("SELECT COUNT(*) FROM ticks");
@@ -220,6 +259,7 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
     {
         private readonly IReadOnlyList<SimNode> _nodes;
         private readonly AggregatorPipeline _pipeline;
+        private readonly ToggleableFaultStore _store;
         private readonly FakeApplicationLifetime _lifetime;
         private readonly HttpClient _http = new();
         private bool _stopped;
@@ -232,16 +272,21 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
             IReadOnlyList<WebSocketExchangeConnector> connectors,
             AggregatorPipeline pipeline,
             PipelineMetricsSource metrics,
+            ToggleableFaultStore store,
             FakeApplicationLifetime lifetime)
         {
             _nodes = nodes;
             Connectors = connectors;
             _pipeline = pipeline;
             Metrics = metrics;
+            _store = store;
             _lifetime = lifetime;
         }
 
         public QuoteFeed Feed(int index) => _nodes[index].App.Services.GetRequiredService<QuoteFeed>();
+
+        /// <summary>Simulates the database going down / coming back by toggling the store's fault.</summary>
+        public void SetDatabaseFaulted(bool faulted) => _store.Faulted = faulted;
 
         /// <summary>Drives a <c>drop</c> fault at one simulator through its real <c>POST /fault</c> endpoint.</summary>
         public async Task DropAsync(int index, CancellationToken ct)
