@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// A minimal real WebSocket "exchange" over loopback (built-in <see cref="HttpListener"/>,

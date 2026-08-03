@@ -1,4 +1,4 @@
-namespace Trading.Core.Abstractions;
+namespace MarketData.Core.Abstractions;
 
 /// <summary>
 /// Persistence port for normalized ticks. This is the low-level DB adapter: it

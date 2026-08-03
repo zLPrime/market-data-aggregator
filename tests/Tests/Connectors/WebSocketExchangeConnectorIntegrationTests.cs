@@ -1,10 +1,10 @@
 using Aggregator.Connectors;
 using Aggregator.Parsing;
 using Microsoft.Extensions.Logging.Abstractions;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Connectors;
+namespace MarketData.Tests.Connectors;
 
 /// <summary>
 /// End-to-end validation against a real loopback WebSocket "exchange" — the Phase b

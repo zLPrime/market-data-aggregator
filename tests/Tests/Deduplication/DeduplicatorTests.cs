@@ -1,8 +1,8 @@
 using Aggregator.Deduplication;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Deduplication;
+namespace MarketData.Tests.Deduplication;
 
 /// <summary>
 /// Single-threaded correctness of the dedup key and the time window. The concurrency

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// An <see cref="ILogger{T}"/> that records the rendered message of every entry, so a test can assert

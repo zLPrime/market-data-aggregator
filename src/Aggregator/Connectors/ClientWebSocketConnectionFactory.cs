@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Connectors;
 

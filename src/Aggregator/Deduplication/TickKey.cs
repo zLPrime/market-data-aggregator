@@ -1,4 +1,4 @@
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Deduplication;
 

@@ -1,6 +1,6 @@
 using Aggregator.Monitoring;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// An <see cref="IMetricsSource"/> that returns snapshots on demand, so the stats reporter's cadence

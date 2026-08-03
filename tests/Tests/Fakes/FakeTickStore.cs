@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// A hand-controlled <see cref="ITickStore"/> for testing the batching writer's flush and

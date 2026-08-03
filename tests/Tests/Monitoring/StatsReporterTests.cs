@@ -1,8 +1,8 @@
 using Aggregator.Monitoring;
 using Microsoft.Extensions.Time.Testing;
-using Trading.Tests.Fakes;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Monitoring;
+namespace MarketData.Tests.Monitoring;
 
 /// <summary>
 /// The reporter is a background loop, so it must tick on its interval and stop on cancellation. Driven

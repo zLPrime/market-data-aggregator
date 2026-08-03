@@ -1,4 +1,4 @@
-namespace Trading.Core.Abstractions;
+namespace MarketData.Core.Abstractions;
 
 /// <summary>
 /// Creates a fresh <see cref="IWebSocketConnection"/> per connection attempt.

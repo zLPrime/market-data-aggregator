@@ -4,10 +4,10 @@
     <Project Path="src/Simulators/Simulators.csproj" />
   </Folder>
   <Folder Name="/src/Core/">
-    <Project Path="src/Core/Trading.Core.csproj" />
+    <Project Path="src/Core/MarketData.Core.csproj" />
   </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Tests/">
-    <Project Path="tests/Tests/Trading.Tests.csproj" />
+    <Project Path="tests/Tests/MarketData.Tests.csproj" />
   </Folder>
 </Solution>

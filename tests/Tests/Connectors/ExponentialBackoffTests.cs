@@ -1,6 +1,6 @@
 using Aggregator.Connectors;
 
-namespace Trading.Tests.Connectors;
+namespace MarketData.Tests.Connectors;
 
 public sealed class ExponentialBackoffTests
 {

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>Builds Format A JSON frames for tests.</summary>
 public static class FormatAMessages

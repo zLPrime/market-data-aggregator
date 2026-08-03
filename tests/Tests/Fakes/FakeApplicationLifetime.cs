@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// Minimal <see cref="IHostApplicationLifetime"/> for tests: records whether the pipeline asked the

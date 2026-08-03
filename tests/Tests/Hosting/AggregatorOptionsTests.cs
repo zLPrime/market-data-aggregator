@@ -1,7 +1,7 @@
 using Aggregator.Hosting;
 using Microsoft.Extensions.Configuration;
 
-namespace Trading.Tests.Hosting;
+namespace MarketData.Tests.Hosting;
 
 /// <summary>
 /// Pins the config surface Phase f exposes: sources + database bind from the <c>Aggregator</c>

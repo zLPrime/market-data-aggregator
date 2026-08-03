@@ -1,7 +1,7 @@
 using Simulators.Quotes;
-using Trading.Tests.Fakes;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Quotes;
+namespace MarketData.Tests.Quotes;
 
 public sealed class QuoteGeneratorTests
 {

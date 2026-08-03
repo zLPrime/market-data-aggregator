@@ -1,7 +1,7 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
 
-namespace Trading.Tests.Fixtures;
+namespace MarketData.Tests.Fixtures;
 
 /// <summary>
 /// The shared Postgres provisioning fixture: starts one throwaway <c>postgres:17</c> per consuming

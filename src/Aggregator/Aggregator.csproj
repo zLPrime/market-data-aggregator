@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Trading.Core.csproj" />
+    <ProjectReference Include="..\Core\MarketData.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

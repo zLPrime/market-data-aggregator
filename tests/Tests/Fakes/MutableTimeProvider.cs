@@ -1,4 +1,4 @@
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// A hand-controlled <see cref="TimeProvider"/> for deterministic tests of time-based

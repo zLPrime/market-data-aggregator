@@ -1,6 +1,6 @@
 using Simulators;
 
-namespace Trading.Tests.Simulators;
+namespace MarketData.Tests.Simulators;
 
 public sealed class SimulatorOptionsTests
 {

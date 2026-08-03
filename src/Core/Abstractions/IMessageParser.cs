@@ -1,4 +1,4 @@
-namespace Trading.Core.Abstractions;
+namespace MarketData.Core.Abstractions;
 
 /// <summary>
 /// Converts one raw exchange frame into a <see cref="NormalizedTick"/>. This is the

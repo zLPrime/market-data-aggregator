@@ -2,10 +2,10 @@ using System.Threading.Channels;
 using Aggregator.Connectors;
 using Aggregator.Parsing;
 using Microsoft.Extensions.Logging.Abstractions;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Connectors;
+namespace MarketData.Tests.Connectors;
 
 public sealed class WebSocketExchangeConnectorTests
 {

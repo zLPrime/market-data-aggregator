@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Hosting;
 

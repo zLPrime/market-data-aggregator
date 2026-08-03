@@ -4,7 +4,7 @@
        endpoint on one port. OutputType defaults to Exe and the ASP.NET Core shared
        framework is referenced implicitly. -->
   <ItemGroup>
-    <ProjectReference Include="..\Core\Trading.Core.csproj" />
+    <ProjectReference Include="..\Core\MarketData.Core.csproj" />
   </ItemGroup>
 
 </Project>

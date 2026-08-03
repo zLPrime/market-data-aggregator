@@ -1,6 +1,6 @@
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>How a fake connection behaves once its scripted messages are exhausted.</summary>
 public enum FakeTermination

@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-namespace Trading.Core.Abstractions;
+namespace MarketData.Core.Abstractions;
 
 /// <summary>
 /// A live connection to one exchange simulator. Each connector runs independently:

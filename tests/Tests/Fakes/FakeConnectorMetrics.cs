@@ -1,6 +1,6 @@
 using Aggregator.Monitoring;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// A hand-set <see cref="IConnectorMetrics"/> for monitoring tests — lets a test declare a source's

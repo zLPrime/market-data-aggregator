@@ -1,8 +1,8 @@
 using Aggregator.Persistence;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fixtures;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fixtures;
 
-namespace Trading.Tests.Persistence;
+namespace MarketData.Tests.Persistence;
 
 /// <summary>
 /// Verifies the one part of the persistence path a fake can't cover: the real binary-COPY write

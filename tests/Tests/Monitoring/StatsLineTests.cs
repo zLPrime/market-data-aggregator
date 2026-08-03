@@ -1,6 +1,6 @@
 using Aggregator.Monitoring;
 
-namespace Trading.Tests.Monitoring;
+namespace MarketData.Tests.Monitoring;
 
 /// <summary>
 /// The stats line is the live dashboard, so its maths must be right: recv/s is a rate derived from the
