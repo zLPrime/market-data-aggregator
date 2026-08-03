@@ -26,8 +26,9 @@ namespace Trading.Tests.EndToEnd;
 /// data path. Asserts the spec's checked failure modes end to end: a steady load lands in the DB with
 /// no loss (grading #1/#3), a source drop driven through the real <c>POST /fault</c> surface
 /// reconnects without disrupting the others (grading #2), duplicate re-sends are removed before the
-/// database (grading #4), and a DB outage counts dropped batches then recovers with nothing lost
-/// silently (spec 2.4; grading #2/#3). Skips cleanly when Docker is absent.
+/// database (grading #4), a DB outage counts dropped batches then recovers with nothing lost silently
+/// (spec 2.4; grading #2/#3), and a graceful shutdown under load drains every accepted tick (grading
+/// #2). Skips cleanly when Docker is absent.
 /// </summary>
 public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
 {
@@ -150,6 +151,29 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         // No silent loss: every received tick is accounted for — deduplicated, written, or explicitly dropped.
         Assert.Equal(snapshot.Received, snapshot.Deduplicated + snapshot.Written + snapshot.Dropped);
         Assert.Equal(snapshot.Written, await RowCountAsync()); // the DB agrees with the written counter
+    }
+
+    [SkippableFact]
+    public async Task Graceful_shutdown_under_load_drains_every_accepted_tick()
+    {
+        Skip.If(_db.DockerUnavailable is not null, $"Docker not available: {_db.DockerUnavailable}");
+        await _db.ResetAsync();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        await using var system = await StartSystemAsync(("exchange-a", "A"), ("exchange-b", "B"), ("exchange-c", "C"));
+
+        // Stop while the sources are actively streaming — do NOT quiesce first, so there are ticks
+        // in flight (buffered in the channels) at the moment shutdown begins.
+        await WaitUntilAsync(() => system.Connectors.All(c => c.Received >= 5), guard.Token);
+
+        await system.StopAsync(); // graceful, unbounded drain of the in-flight ticks
+
+        var snapshot = system.Metrics.Capture();
+        Assert.True(snapshot.Written > 0, "expected ticks to have been persisted");
+        Assert.Equal(0, snapshot.Dropped); // a clean shutdown with a healthy DB drops nothing
+        // No silent loss on shutdown: every accepted tick was either a duplicate or drained to the DB.
+        Assert.Equal(snapshot.Received, snapshot.Deduplicated + snapshot.Written);
+        Assert.Equal(snapshot.Written, await RowCountAsync()); // and it actually reached the database
     }
 
     /// <summary>
