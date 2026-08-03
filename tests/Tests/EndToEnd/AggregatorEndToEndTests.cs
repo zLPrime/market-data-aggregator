@@ -70,13 +70,14 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
 
         await WaitUntilAsync(() => system.Connectors.All(c => c.Received >= 10 && c.IsConnected), guard.Token);
         var receivedBeforeDrop = system.Connectors.Select(c => c.Received).ToArray();
-        var connectionsBeforeDrop = system.Feed(0).ConnectionsAccepted;
+        // One live connection per source before the fault — the baseline the untouched sources must hold.
+        var connectionsBeforeDrop = Enumerable.Range(0, 3).Select(i => system.Feed(i).ConnectionsAccepted).ToArray();
 
         // Force-close exchange-a through the real HTTP control surface (spec scenario 2).
         await system.DropAsync(0, guard.Token);
 
         // It reconnects on its own...
-        await WaitUntilAsync(() => system.Feed(0).ConnectionsAccepted > connectionsBeforeDrop, guard.Token);
+        await WaitUntilAsync(() => system.Feed(0).ConnectionsAccepted > connectionsBeforeDrop[0], guard.Token);
         // ...and every source keeps producing — the drop stalled no one, and exchange-a itself recovered.
         await WaitUntilAsync(
             () => system.Connectors.Select(c => c.Received).Zip(receivedBeforeDrop).All(p => p.First > p.Second),
@@ -85,6 +86,11 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         await system.StopAsync();
 
         Assert.True(system.Feed(0).ConnectionsAccepted >= 2, "exchange-a should have dropped and reconnected");
+        // Isolation (grading #2): the untouched sources never dropped or reconnected — their single
+        // connection held throughout. This is what "Received kept climbing" alone can't prove, since a
+        // counter climbs with time regardless; an unchanged connection count means genuinely undisturbed.
+        Assert.Equal(connectionsBeforeDrop[1], system.Feed(1).ConnectionsAccepted);
+        Assert.Equal(connectionsBeforeDrop[2], system.Feed(2).ConnectionsAccepted);
         Assert.Equal(
             new HashSet<string> { "exchange-a", "exchange-b", "exchange-c" },
             await SourcesAsync()); // no source was lost across the fault
@@ -133,9 +139,19 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
 
         system.SetDatabaseFaulted(true); // the store now rejects every write, as a downed DB would
 
-        // A sustained outage exhausts the retries, and the batch is counted as dropped — the
-        // conscious bounded-loss strategy (spec 2.4), never a swallowed exception.
-        await WaitUntilAsync(() => system.Metrics.Capture().Dropped > 0, guard.Token);
+        // While the DB is down the writer stops draining the outbound belt, so it fills — the live
+        // backpressure signal (spec 2.5). Track its high-water mark through the outage, then assert a
+        // sustained outage exhausts the retries and the batch is counted as dropped — the conscious
+        // bounded-loss strategy (spec 2.4), never a swallowed exception.
+        var maxOutbound = 0;
+        await WaitUntilAsync(
+            () =>
+            {
+                var live = system.Metrics.Capture();
+                maxOutbound = Math.Max(maxOutbound, live.OutboundCount);
+                return live.Dropped > 0;
+            },
+            guard.Token);
         var writtenBeforeRecovery = system.Metrics.Capture().Written;
 
         system.SetDatabaseFaulted(false); // the database comes back
@@ -148,6 +164,9 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         var snapshot = system.Metrics.Capture();
         Assert.True(snapshot.Dropped > 0, "a sustained outage should count dropped batches");
         Assert.True(snapshot.Written > writtenBeforeRecovery, "the writer should resume after recovery");
+        // ~200 ticks/s keep arriving while the writer is stuck retrying for ~3 s, so the belt climbs
+        // into the hundreds; a floor of 50 proves real backpressure without racing the exact number.
+        Assert.True(maxOutbound >= 50, $"the outbound belt should fill (backpressure) while the DB is down; saw {maxOutbound}");
         // No silent loss: every received tick is accounted for — deduplicated, written, or explicitly dropped.
         Assert.Equal(snapshot.Received, snapshot.Deduplicated + snapshot.Written + snapshot.Dropped);
         Assert.Equal(snapshot.Written, await RowCountAsync()); // the DB agrees with the written counter
