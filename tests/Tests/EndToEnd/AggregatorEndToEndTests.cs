@@ -50,10 +50,14 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
 
         await system.StopAsync(); // unbounded drain: everything accepted is flushed before we assert
 
+        var snapshot = system.Metrics.Capture();
         var rows = await RowCountAsync();
-        var written = system.Metrics.Capture().Written;
         Assert.True(rows > 0, "expected ticks to have been persisted");
-        Assert.Equal(written, rows); // the writer's count and the DB agree — nothing lost in between
+        // No silent loss: every received tick is accounted for as a duplicate or a DB write — with a
+        // healthy DB nothing is dropped, so a received-but-vanished tick would break this equality.
+        Assert.Equal(0, snapshot.Dropped);
+        Assert.Equal(snapshot.Received, snapshot.Deduplicated + snapshot.Written);
+        Assert.Equal(snapshot.Written, rows); // and the writer's count agrees with the actual DB rows
         Assert.Equal(
             new HashSet<string> { "exchange-a", "exchange-b", "exchange-c" },
             await SourcesAsync()); // all three sources reached the database
@@ -94,7 +98,13 @@ public sealed class AggregatorEndToEndTests : IClassFixture<PostgresFixture>
         Assert.Equal(
             new HashSet<string> { "exchange-a", "exchange-b", "exchange-c" },
             await SourcesAsync()); // no source was lost across the fault
-        Assert.Equal(system.Metrics.Capture().Written, await RowCountAsync()); // still no silent loss
+
+        var snapshot = system.Metrics.Capture();
+        // No silent loss across the fault: every received tick is accounted for as a duplicate or a DB
+        // write (a healthy DB drops nothing), and the writer's count agrees with the actual DB rows.
+        Assert.Equal(0, snapshot.Dropped);
+        Assert.Equal(snapshot.Received, snapshot.Deduplicated + snapshot.Written);
+        Assert.Equal(snapshot.Written, await RowCountAsync());
     }
 
     [SkippableFact]
