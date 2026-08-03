@@ -99,9 +99,17 @@ directly. Two tokens map exactly onto the two things shutdown must do — *stop 
 *finish writing what we already took* — and reuse the channel-completion contracts phases B–D already
 guarantee (a connector completes its channel only on run-exit; fan-in and writer flush-then-exit on
 completion), so the drain is just those contracts firing in order. The deadline keeps shutdown
-bounded; past it the writer's existing retry-then-count-as-dropped policy means the only loss is
-*counted and logged*, never silent. Option (b) adds a second write path for a case a downed DB loses
-anyway; (c) can't express the stop-intake-but-keep-draining split.
+bounded. **Boundary, stated honestly:** on the *normal* path (drain completes within `DrainTimeout`)
+there is no loss at all; if the DB is *down* during the drain, the loss is the writer's
+retry-then-count-as-dropped path — *counted and logged*. Only when the deadline is **exceeded** and the
+drain token is force-cancelled is there loss that the `Dropped` gauge does **not** capture: ticks the
+fan-in had accepted but not yet written, plus whatever still sits in the outbound channel, are
+discarded uncounted. That is the accepted cost of bounding shutdown (the alternative is an unbounded
+hang against a broken DB); it is a rare, operator-triggered boundary, documented as a known limitation
+rather than papered over. The Phase-h e2e therefore asserts the strong property on the *unbounded*
+drain (`Received == Deduplicated + Written + Dropped`); the forced-deadline path is left to the unit
+tests and this note. Option (b) adds a second write path for a case a downed DB loses anyway; (c)
+can't express the stop-intake-but-keep-draining split.
 
 ## 2026-08-01 — Runtime config is only what an operator varies; schema stays ops-owned
 

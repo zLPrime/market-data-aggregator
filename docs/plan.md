@@ -137,16 +137,43 @@ simulators over a real Postgres — the CI-gating proof that the assembled syste
   `SimulatorApp`s (port 0) → real `WebSocketExchangeConnector`s + format parsers → real
   `FanIn`/`Deduplicator` → real `BatchingTickWriter` → real `NpgsqlTickStore` over a
   Testcontainers `postgres:17`. Asserts on DB rows + `PipelineMetricsSource.Capture()`.
-  Covers the **core three** grading-priority scenarios: steady load lands in the DB
-  (`Written` == rows, all sources present), source drop + reconnect via `POST /fault drop`
-  (others keep flowing), and duplicates via `dup on` deduped (no duplicate key tuples in the
-  DB, `Deduplicated > 0`). Skips cleanly when Docker is absent (as Phase d does).
+  Covers **five** scenarios: (1) steady load lands in the DB (`Written` == rows, all sources
+  present); (2) source drop + reconnect via `POST /fault drop`, with the untouched sources'
+  connection counts **unchanged** (real isolation, not just "a counter kept climbing");
+  (3) duplicates via `dup on` deduped (no duplicate key tuple in the DB, `Deduplicated > 0`);
+  (4) DB outage — a store-seam fault makes writes fail, `Dropped` climbs, the outbound belt
+  fills (backpressure gauge asserted), then recovery persists again; (5) graceful shutdown
+  under load drains every accepted tick. Scenarios 4/5 assert the no-silent-loss accounting
+  invariant `Received == Deduplicated + Written + Dropped`. Skips cleanly when Docker is absent.
+  - **DB-outage mechanism:** injected at the `ITickStore` seam (a `ToggleableFaultStore`
+    wrapping the real store), **not** by stopping the container — Testcontainers publishes an
+    ephemeral host port that moves on restart, which the held `NpgsqlDataSource` can't follow.
+    Healthy and recovery writes still hit the real database.
+- **Known limitations / deferred e2e coverage** (for the Phase i README — each is covered by a
+  narrower unit/integration test or needs a simulator feature we deliberately didn't build):
+  - **Forced/bounded-deadline drain is untested, and its loss is *uncounted*.** All e2e drains
+    are unbounded (`CancellationToken.None`). When the real drain deadline is exceeded, ticks the
+    fan-in accepted-but-hadn't-written plus everything in the outbound channel are lost **without**
+    appearing in `Dropped` (which counts only DB-write-failure loss). This is the accepted bounded
+    hard-stop boundary from the Phase-f drain decision — a real behavior worth documenting.
+  - **Hung/idle socket (spec 2.2)** — no e2e; needs a simulator "connect then stop sending" fault.
+    Idle-timeout reconnect is unit-tested on the connector.
+  - **Bad/garbage data (`ParseErrors` climbs, process survives)** — no e2e; the simulators have no
+    `garbage` fault (deferred in Phase e). Parser rejection is unit-tested per format.
+  - **Load magnitude + bounded memory (spec 1)** — e2e runs ~300 ticks/s briefly and does not assert
+    the 500–1000/s target or that `TrackedKeys` / channel fill plateau under sustained load.
+  - **Duplicates *after reconnect*** (literal spec 3) — the simulator doesn't replay quotes on
+    reconnect, so a reconnect never *produces* duplicates; dedup is exercised via the `dup` fault.
+  - **Concurrent/repeated drops** — e2e drops one source once; repeated drops are covered in
+    `SimulatorIntegrationTests` (simulator-only, not through the full pipeline).
+  - **Log-event assertions (spec 2.5)** — the e2e uses `NullLogger`; connect/disconnect/error
+    logging is exercised where it matters via `RecordingLogger` in the connector/writer unit tests.
 - **Deferred — orchestration script** (`scripts/teststand.ps1` + `.sh`): the process-level
   runbook that boots the real host + `docker` Postgres for a human to watch. Left for a
   follow-up because the xUnit e2e already gates CI and the script is shell-fragile; the
   README (Phase i) will document the manual runbook it would automate.
 - **TDD note:** this is a **test-only** phase — the e2e exercises already-shipped production
-  code, so the red/green split doesn't apply; it ships as a single test commit after docs.
+  code, so the red/green split doesn't apply; it ships as test commits after docs.
 - **Channel:** none new — this phase only exercises the assembled pipeline.
 
 ### i — README ⬜
