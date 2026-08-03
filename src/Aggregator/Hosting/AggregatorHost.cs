@@ -1,5 +1,6 @@
 using Aggregator.Connectors;
 using Aggregator.Deduplication;
+using Aggregator.Monitoring;
 using Aggregator.Parsing;
 using Aggregator.Persistence;
 using Aggregator.Pipeline;
@@ -39,7 +40,10 @@ public static class AggregatorHost
 
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton(new DeduplicatorOptions());
-        builder.Services.AddSingleton<IDeduplicator, Deduplicator>();
+        // Registered concretely (not just as IDeduplicator) so the metrics source can read its
+        // TrackedKeys gauge; the same singleton instance serves both roles.
+        builder.Services.AddSingleton<Deduplicator>();
+        builder.Services.AddSingleton<IDeduplicator>(sp => sp.GetRequiredService<Deduplicator>());
 
         // The data source is a pooled singleton owned (and disposed) by the container; the store
         // stays a stateless adapter over it.
@@ -47,25 +51,40 @@ public static class AggregatorHost
         builder.Services.AddSingleton<ITickStore, NpgsqlTickStore>();
         builder.Services.AddSingleton<IWebSocketConnectionFactory, ClientWebSocketConnectionFactory>();
 
-        builder.Services.AddHostedService(serviceProvider => BuildPipeline(serviceProvider, options));
+        // The stages are built once (they depend on the runtime Sources list) and shared between the
+        // hosted pipeline and the metrics source that the reporter reads.
+        builder.Services.AddSingleton(serviceProvider => BuildComponents(serviceProvider, options));
+        builder.Services.AddSingleton(serviceProvider => serviceProvider.GetRequiredService<PipelineComponents>().Metrics);
+
+        // Registered BEFORE the pipeline so it stops AFTER it (hosted services stop in reverse order):
+        // the stats line keeps printing through the whole drain and stops last.
+        builder.Services.AddHostedService(serviceProvider => new StatsReporter(
+            serviceProvider.GetRequiredService<IMetricsSource>(),
+            serviceProvider.GetRequiredService<TimeProvider>(),
+            serviceProvider.GetRequiredService<ILogger<StatsReporter>>(),
+            TimeSpan.FromSeconds(1)));
+        builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<PipelineComponents>().Pipeline);
 
         return builder.Build();
     }
 
     /// <summary>
-    /// Assembles the pipeline stages from configuration. Kept as one linear method because the
-    /// wiring is inherently sequential (connectors → their readers → fan-in → its output → writer)
-    /// and depends on the runtime list of sources, which DI registration alone cannot express.
+    /// Assembles the pipeline stages from configuration, plus the metrics view over them. Kept as one
+    /// linear method because the wiring is inherently sequential (connectors → their readers → fan-in →
+    /// its output → writer) and depends on the runtime list of sources, which DI registration alone
+    /// cannot express. The connectors are held as their concrete type so they can serve both the
+    /// pipeline (<see cref="IExchangeConnector"/>) and the monitor (<see cref="IConnectorMetrics"/>).
     /// </summary>
-    private static AggregatorPipeline BuildPipeline(IServiceProvider serviceProvider, AggregatorOptions options)
+    private static PipelineComponents BuildComponents(IServiceProvider serviceProvider, AggregatorOptions options)
     {
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         var connectionFactory = serviceProvider.GetRequiredService<IWebSocketConnectionFactory>();
-        var deduplicator = serviceProvider.GetRequiredService<IDeduplicator>();
+        var deduplicator = serviceProvider.GetRequiredService<Deduplicator>();
         var store = serviceProvider.GetRequiredService<ITickStore>();
+        var timeProvider = serviceProvider.GetRequiredService<TimeProvider>();
 
         var connectors = options.Sources
-            .Select(source => (IExchangeConnector)new WebSocketExchangeConnector(
+            .Select(source => new WebSocketExchangeConnector(
                 source.Name,
                 new ConnectorOptions { Uri = source.Uri! }, // validated non-null in AggregatorOptions.Load
                 connectionFactory,
@@ -85,12 +104,16 @@ public static class AggregatorHost
             new BatchingWriterOptions(),
             loggerFactory.CreateLogger<BatchingTickWriter>());
 
-        return new AggregatorPipeline(
+        var pipeline = new AggregatorPipeline(
             connectors,
             fanIn,
             writer,
             serviceProvider.GetRequiredService<IHostApplicationLifetime>(),
             loggerFactory.CreateLogger<AggregatorPipeline>());
+
+        var metrics = new PipelineMetricsSource(connectors, fanIn, deduplicator, writer, timeProvider);
+
+        return new PipelineComponents(pipeline, metrics);
     }
 
     /// <summary>The format-selection seam — the one place a new wire format is registered.</summary>

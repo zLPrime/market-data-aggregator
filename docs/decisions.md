@@ -20,6 +20,36 @@ Each entry follows this template:
 
 ---
 
+## 2026-08-01 — Monitoring: read-model snapshot + a separate stats-reporter service
+
+**Decision:** Surface the pipeline's counters through a `PipelineMetricsSource.Capture()` that reads
+every stage into one immutable `PipelineMetrics` snapshot, and a `StatsReporter` `BackgroundService`
+that logs a once-per-second line built by a pure `StatsLine.Format(previous, current)`. Only the
+connectors get a metrics interface (`IConnectorMetrics`) — there are *N* of them behind
+`IExchangeConnector`; the single fan-in / deduplicator / writer are read concretely. The reporter is a
+**separate** hosted service registered **before** the pipeline (so it stops last and keeps reporting
+through the drain), not a stage inside `AggregatorPipeline`.
+
+**Alternatives considered:** (a) A metrics interface per stage (`IThroughputMetrics`,
+`IWriterMetrics`, …) — symmetric, but three of the four stages are singletons, so the extra interfaces
+abstract a polymorphism that does not exist. (b) The reporter as a stage inside the pipeline runner —
+but a perpetual loop never completes, so it would hang the drain's `Task.WhenAll`. (c) Widening
+`IExchangeConnector` / `IDeduplicator` with the counters — mixes monitoring into the domain contracts
+(ISP). (d) `System.Diagnostics.Metrics` (`Meter` + a console listener) — idiomatic but far heavier
+than a single human-facing console line needs (YAGNI); the plain `Interlocked` counters already exist.
+
+**Why:** recv/s is a delta between two points in time, so an immutable snapshot with a capture
+timestamp is the natural model, and a pure formatter makes the rate maths and rendering testable
+without a timer. Keeping the reporter a separate `BackgroundService` means the host owns its lifecycle
+and observes its `ExecuteAsync` (hard rule) for free, and leaves the carefully-verified Phase-f drain
+untouched; registering it before the pipeline uses the host's reverse-order stop so the final flush is
+still visible. Interfaces only where polymorphism is real (the connectors) keeps the abstraction
+honest per the repo's simplicity rule. A small `PipelineComponents` record shares the once-built stages
+between the pipeline and the metrics source, since they are assembled from the runtime `Sources` list
+and cannot be DI-registered individually.
+
+---
+
 ## 2026-08-01 — Aggregator shutdown: a bounded, two-token drain
 
 **Decision:** Graceful shutdown runs in two phases with two separate cancellation sources. Phase 1

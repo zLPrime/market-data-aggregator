@@ -24,8 +24,8 @@ Engineering decisions made along the way are logged separately in
 | c | Deduplicator (stress test **before** implementation) | ✅ | #4 |
 | d | Batched DB writer (fault-injection test **before** implementation) + fan-in | ✅ | #10 |
 | e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ✅ | #12 |
-| f | Aggregator host wiring (composition root) + graceful shutdown / drain | 🔧 | — |
-| g | Monitoring counters + backpressure indicator + console stats line | ⬜ | — |
+| f | Aggregator host wiring (composition root) + graceful shutdown / drain | ✅ | #13 |
+| g | Monitoring counters + backpressure indicator + console stats line | 🔧 | — |
 | h | Integration test stand: orchestration script + xUnit e2e | ⬜ | — |
 | i | README | ⬜ | — |
 
@@ -106,7 +106,7 @@ the WebSocket quote feed and the HTTP control endpoint **on one port**.
 - Decisions logged: control transport (two surfaces, one controller); minimal vocabulary, drop as a
   generation counter, one-quote-per-tick (batching deferred), and the three format choices.
 
-### f — Aggregator host wiring + graceful shutdown / drain 🔧 IN PROGRESS
+### f — Aggregator host wiring + graceful shutdown / drain ✅
 Wire the aggregator **composition root** in `Program.cs` (currently a stub): read config
 (simulator endpoints + DB conn string), build connectors → `FanIn` → `Deduplicator` →
 `BatchingTickWriter` → `NpgsqlTickStore`, and run under a host lifetime with `Ctrl+C`
@@ -116,7 +116,7 @@ a bounded timeout. No silent loss of in-memory ticks on a clean shutdown.
 - **Channel:** orderly completion cascade — inbound writers `Complete()` → dedup drains →
   outbound `Complete()` → DB writer drains remaining batches, all inside a drain timeout.
 
-### g — Monitoring counters + backpressure indicator ⬜
+### g — Monitoring counters + backpressure indicator 🔧 IN PROGRESS
 Counters for processed / written / dropped ticks (per source and aggregate); log key
 events (connect/disconnect/errors). Expose a backpressure gauge. Surface it all to the
 **console**: structured `ILogger` events for connect/disconnect/reconnect-with-backoff/
