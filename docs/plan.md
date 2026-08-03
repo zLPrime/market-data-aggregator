@@ -26,8 +26,8 @@ Engineering decisions made along the way are logged separately in
 | e | Remaining 2–3 exchange simulators + fault control (CLI + HTTP endpoint) | ✅ | #12 |
 | f | Aggregator host wiring (composition root) + graceful shutdown / drain | ✅ | #13 |
 | g | Monitoring counters + backpressure indicator + console stats line | ✅ | #14 |
-| h | Integration test stand: hermetic xUnit e2e (orchestration script deferred) | 🔧 | — |
-| i | README | ⬜ | — |
+| h | Integration test stand: hermetic xUnit e2e (orchestration script deferred) | ✅ | — |
+| i | README + end-to-end runbook | ✅ | — |
 
 ---
 
@@ -127,7 +127,7 @@ watched during manual testing.
   live backpressure indicator. Per-connector `Received` / `ParseErrors` counters already
   exist from Phase b.
 
-### h — Integration test stand 🔧 IN PROGRESS
+### h — Integration test stand ✅
 The end-to-end harness that runs the **real** aggregator pipeline against **live** in-process
 simulators over a real Postgres — the CI-gating proof that the assembled system behaves.
 - **Scope (kept deliberately simple):** ship the **hermetic xUnit e2e** only; the shell
@@ -176,10 +176,16 @@ simulators over a real Postgres — the CI-gating proof that the assembled syste
   code, so the red/green split doesn't apply; it ships as test commits after docs.
 - **Channel:** none new — this phase only exercises the assembled pipeline.
 
-### i — README ⬜
+### i — README + end-to-end runbook ✅
 How to run simulators, aggregator, and the DB. Key engineering decisions and trade-offs:
 dedup model (key + window), DB write strategy, DB-error behavior, reconnection. Known
 limitations (what was intentionally left out and why).
+- Shipped [`../README.md`](../README.md) — what the system does, quick start, the four graded
+  decisions with trade-offs (linking `decisions.md` for the full reasoning), monitoring, and the
+  known-limitations list drawn from the deferred items above.
+- Shipped [`runbook.md`](runbook.md) — the human end-to-end walkthrough the deferred orchestration
+  script would have automated: `dotnet test` for the hermetic e2e, plus a manual five-terminal path
+  (DB + schema → simulators → aggregator → inject `drop`/`dup` → observe drain on Ctrl+C).
 
 ---
 
