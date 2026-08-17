@@ -10,9 +10,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Simulators;
 using Simulators.Faults;
 using Simulators.Hosting;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Simulators;
+namespace MarketData.Tests.Simulators;
 
 /// <summary>
 /// End-to-end: a real Kestrel-hosted simulator streaming over a real WebSocket to the actual Phase b

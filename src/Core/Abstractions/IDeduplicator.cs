@@ -1,4 +1,4 @@
-namespace Trading.Core.Abstractions;
+namespace MarketData.Core.Abstractions;
 
 /// <summary>
 /// Filters out duplicate ticks arriving concurrently from multiple sources

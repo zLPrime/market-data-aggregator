@@ -3,10 +3,10 @@ using Aggregator.Monitoring;
 using Aggregator.Persistence;
 using Aggregator.Pipeline;
 using Microsoft.Extensions.Logging.Abstractions;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Monitoring;
+namespace MarketData.Tests.Monitoring;
 
 /// <summary>
 /// The metrics source is the read model behind the stats line. These pin the two things that have real

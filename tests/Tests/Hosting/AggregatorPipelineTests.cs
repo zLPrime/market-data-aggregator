@@ -3,10 +3,10 @@ using Aggregator.Hosting;
 using Aggregator.Persistence;
 using Aggregator.Pipeline;
 using Microsoft.Extensions.Logging.Abstractions;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Hosting;
+namespace MarketData.Tests.Hosting;
 
 /// <summary>
 /// Drives the real drain cascade — fake connectors feeding a real fan-in + deduplicator + batching

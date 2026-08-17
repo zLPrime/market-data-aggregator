@@ -2,7 +2,7 @@ using Aggregator.Persistence;
 using Aggregator.Pipeline;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Hosting;
 

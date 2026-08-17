@@ -1,6 +1,6 @@
 using Simulators.Faults;
 
-namespace Trading.Tests.Faults;
+namespace MarketData.Tests.Faults;
 
 public sealed class CommandParserTests
 {

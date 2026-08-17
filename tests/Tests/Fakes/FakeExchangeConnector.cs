@@ -1,7 +1,7 @@
 using System.Threading.Channels;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// A hand-driven <see cref="IExchangeConnector"/> for host/pipeline tests. Owns an unbounded channel

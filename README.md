@@ -1,4 +1,4 @@
-# Trading System — Real-Time Exchange Data Aggregator
+# Market Data Aggregator — Real-Time Multi-Exchange Quote Ingestion
 
 Financial exchanges publish a non-stop stream of price quotes. This project simulates the system that
 lives behind such feeds — it connects to several exchanges at once, merges their live data into one
@@ -53,14 +53,14 @@ Every stage boundary is a bounded `Channel<T>`. Channel occupancy is the backpre
 ## Project layout
 
 ```
-TradingSystem.slnx            solution (.NET 10 .slnx format)
+MarketDataAggregator.slnx     solution (.NET 10 .slnx format)
 global.json                   pins the SDK to 10.0.302
 Directory.Build.props         shared build settings (net10.0, nullable, CS4014-as-error)
 db/schema.sql                 canonical ticks table (applied by ops; loaded verbatim by the e2e test)
-src/Core         (Trading.Core)   core abstractions — no dependencies
-src/Aggregator   (Aggregator)     the aggregator host
-src/Simulators   (Simulators)     the exchange simulators
-tests/Tests      (Trading.Tests)  xUnit tests (unit + hermetic end-to-end)
+src/Core         (MarketData.Core)    core abstractions — no dependencies
+src/Aggregator   (Aggregator)         the aggregator host
+src/Simulators   (Simulators)         the exchange simulators
+tests/Tests      (MarketData.Tests)   xUnit tests (unit + hermetic end-to-end)
 docs/                             spec, plan, decision log, per-subsystem design notes, runbook
 ```
 

@@ -1,7 +1,7 @@
 using System.Threading.Channels;
 using Aggregator.Connectors;
 using Microsoft.Extensions.Logging;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Persistence;
 

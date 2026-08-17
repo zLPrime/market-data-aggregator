@@ -7,7 +7,7 @@ namespace Simulators.Quotes;
 /// </summary>
 /// <remarks>
 /// An immutable <c>readonly record struct</c> for the same reasons as
-/// <see cref="Trading.Core.Abstractions.NormalizedTick"/>: cheap to pass around at 500–1000/s
+/// <see cref="MarketData.Core.Abstractions.NormalizedTick"/>: cheap to pass around at 500–1000/s
 /// and safe to share without copying. It mirrors that type's fields minus <c>Source</c>, so a
 /// formatter here and a parser on the aggregator side round-trip cleanly.
 /// </remarks>

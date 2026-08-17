@@ -1,10 +1,10 @@
 using System.Threading.Channels;
 using Aggregator.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Persistence;
+namespace MarketData.Tests.Persistence;
 
 /// <summary>
 /// Covers the batching writer's two flush triggers and — the required "breaking scenario"

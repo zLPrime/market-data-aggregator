@@ -1,4 +1,4 @@
-# Trading System — Real-Time Exchange Data Aggregator
+# Market Data Aggregator — Real-Time Multi-Exchange Quote Ingestion
 
 Aggregates live quote streams from multiple WebSocket "exchange" simulators:
 connects concurrently, normalizes heterogeneous formats, deduplicates,
@@ -14,13 +14,13 @@ build plan and current status live in [`docs/plan.md`](docs/plan.md).
 
 ## Project layout
 ```
-TradingSystem.slnx            # solution (.NET 10 .slnx format)
+MarketDataAggregator.slnx     # solution (.NET 10 .slnx format)
 global.json                   # pins SDK to 10.0.302
 Directory.Build.props         # shared build settings (net10.0, nullable, CS4014-as-error)
-src/Core         (Trading.Core)   # core abstractions — no dependencies
-src/Aggregator   (Aggregator)     # the aggregator host
-src/Simulators   (Simulators)     # the exchange simulators
-tests/Tests      (Trading.Tests)  # xUnit tests
+src/Core         (MarketData.Core)    # core abstractions — no dependencies
+src/Aggregator   (Aggregator)         # the aggregator host
+src/Simulators   (Simulators)         # the exchange simulators
+tests/Tests      (MarketData.Tests)   # xUnit tests
 ```
 
 ## Build / run / test

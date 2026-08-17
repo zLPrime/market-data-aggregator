@@ -1,6 +1,6 @@
 using Npgsql;
 using NpgsqlTypes;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Persistence;
 

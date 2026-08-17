@@ -1,6 +1,6 @@
 using Aggregator.Parsing;
 
-namespace Trading.Tests.Parsing;
+namespace MarketData.Tests.Parsing;
 
 public sealed class FormatCParserTests
 {

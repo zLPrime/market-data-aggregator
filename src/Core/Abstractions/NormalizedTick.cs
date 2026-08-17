@@ -1,4 +1,4 @@
-namespace Trading.Core.Abstractions;
+namespace MarketData.Core.Abstractions;
 
 /// <summary>
 /// The single internal representation every exchange quote is normalized to,

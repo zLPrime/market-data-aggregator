@@ -1,8 +1,8 @@
 using Aggregator.Parsing;
 using Simulators.Quotes;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Formats;
+namespace MarketData.Tests.Formats;
 
 /// <summary>
 /// The two extensibility seams must agree: whatever a simulator's <see cref="IQuoteFormatter"/>

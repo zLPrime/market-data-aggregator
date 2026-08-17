@@ -1,6 +1,6 @@
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Fakes;
+namespace MarketData.Tests.Fakes;
 
 /// <summary>
 /// Builds one <see cref="IWebSocketConnection"/> per connect attempt from a caller-supplied

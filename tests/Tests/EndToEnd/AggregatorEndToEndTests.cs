@@ -14,11 +14,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Simulators;
 using Simulators.Faults;
 using Simulators.Hosting;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
-using Trading.Tests.Fixtures;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
+using MarketData.Tests.Fixtures;
 
-namespace Trading.Tests.EndToEnd;
+namespace MarketData.Tests.EndToEnd;
 
 /// <summary>
 /// The Phase h test stand: the <b>real</b> aggregator pipeline (connectors → fan-in → deduplicator →

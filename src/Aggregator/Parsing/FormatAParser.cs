@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
 namespace Aggregator.Parsing;
 

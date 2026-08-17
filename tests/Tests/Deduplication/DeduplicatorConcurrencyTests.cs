@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using Aggregator.Deduplication;
-using Trading.Core.Abstractions;
-using Trading.Tests.Fakes;
+using MarketData.Core.Abstractions;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Deduplication;
+namespace MarketData.Tests.Deduplication;
 
 /// <summary>
 /// The required "breaking scenario" tests (spec: thread-safety under concurrent writes; grading

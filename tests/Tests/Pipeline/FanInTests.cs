@@ -3,9 +3,9 @@ using System.Threading.Channels;
 using Aggregator.Deduplication;
 using Aggregator.Pipeline;
 using Microsoft.Extensions.Logging.Abstractions;
-using Trading.Core.Abstractions;
+using MarketData.Core.Abstractions;
 
-namespace Trading.Tests.Pipeline;
+namespace MarketData.Tests.Pipeline;
 
 /// <summary>
 /// The fan-in stage merges every connector's stream through one deduplicator into a single

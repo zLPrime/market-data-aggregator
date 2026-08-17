@@ -1,7 +1,7 @@
 using Aggregator.Parsing;
-using Trading.Tests.Fakes;
+using MarketData.Tests.Fakes;
 
-namespace Trading.Tests.Parsing;
+namespace MarketData.Tests.Parsing;
 
 public sealed class FormatAParserTests
 {
